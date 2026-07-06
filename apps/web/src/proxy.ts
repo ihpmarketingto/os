@@ -2,7 +2,7 @@ import { createSupabaseServerClient } from "@ihp/database/client-server";
 import { NextResponse, type NextRequest } from "next/server";
 import { loadServerEnv } from "@ihp/config";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback"];
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/confirm"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
