@@ -408,6 +408,191 @@ async function main() {
     console.log("Pipeline/delivery demo data already exists - skipping leads/deals/projects/tasks/content seed.");
   }
 
+  // --- Phase 2: commercial demo data (guarded on retainers existing) -------
+  const { count: existingRetainersCount } = await supabase
+    .from("retainers")
+    .select("id", { count: "exact", head: true })
+    .eq("organisation_id", organisationId);
+
+  if (!existingRetainersCount) {
+    const bloom = clientBySlug.get("bloom-beauty-bar")!;
+
+    const { error: retainerError } = await supabase.from("retainers").insert([
+      {
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        name: "Social + paid media retainer",
+        amount: 4500,
+        billing_cadence: "monthly" as const,
+        included_hours: 20,
+        start_date: "2026-01-01",
+        end_date: "2026-12-31",
+      },
+      {
+        organisation_id: organisationId,
+        client_id: cortex.id,
+        name: "Growth retainer",
+        amount: 6000,
+        billing_cadence: "monthly" as const,
+        included_hours: 30,
+        start_date: "2026-03-01",
+        end_date: null,
+      },
+      {
+        organisation_id: organisationId,
+        client_id: bloom.id,
+        name: "Local marketing retainer",
+        amount: 2500,
+        billing_cadence: "monthly" as const,
+        included_hours: 12,
+        start_date: "2026-05-01",
+        end_date: "2026-07-31",
+      },
+    ]);
+    if (retainerError) throw retainerError;
+
+    const { error: contractError } = await supabase.from("contracts").insert([
+      {
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        name: "12-month services agreement",
+        status: "signed" as const,
+        start_date: "2026-01-01",
+        end_date: "2026-07-31",
+        renewal_notice_days: 30,
+        value: 54000,
+      },
+      {
+        organisation_id: organisationId,
+        client_id: cortex.id,
+        name: "Growth services agreement",
+        status: "signed" as const,
+        start_date: "2026-03-01",
+        end_date: "2027-02-28",
+        renewal_notice_days: 45,
+        value: 72000,
+      },
+    ]);
+    if (contractError) throw contractError;
+
+    const { data: invoiceRows, error: invoiceError } = await supabase
+      .from("invoices")
+      .insert([
+        {
+          organisation_id: organisationId,
+          client_id: lumen.id,
+          number: "INV-2026-0001",
+          status: "paid" as const,
+          issue_date: "2026-06-01",
+          due_date: "2026-06-15",
+          amount: 4500,
+          tax_amount: 225,
+          notes: "June retainer",
+          paid_at: "2026-06-10T15:00:00Z",
+          created_by: ownerId,
+        },
+        {
+          organisation_id: organisationId,
+          client_id: cortex.id,
+          number: "INV-2026-0002",
+          status: "sent" as const,
+          issue_date: "2026-07-01",
+          due_date: "2026-07-15",
+          amount: 6000,
+          tax_amount: 300,
+          notes: "July retainer",
+          created_by: ownerId,
+        },
+        {
+          organisation_id: organisationId,
+          client_id: bloom.id,
+          number: "INV-2026-0003",
+          status: "overdue" as const,
+          issue_date: "2026-06-01",
+          due_date: "2026-06-15",
+          amount: 2500,
+          tax_amount: 125,
+          notes: "June retainer",
+          created_by: ownerId,
+        },
+      ])
+      .select("id, number");
+    if (invoiceError) throw invoiceError;
+
+    const paidInvoice = invoiceRows.find((i) => i.number === "INV-2026-0001")!;
+    const { error: paymentError } = await supabase.from("payments").insert({
+      organisation_id: organisationId,
+      invoice_id: paidInvoice.id,
+      amount: 4725,
+      method: "e_transfer" as const,
+      reference: "ETFR-88412",
+      paid_at: "2026-06-10T15:00:00Z",
+      recorded_by: ownerId,
+    });
+    if (paymentError) throw paymentError;
+
+    const { error: expenseError } = await supabase.from("expenses").insert([
+      {
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        category: "contractor" as const,
+        description: "UGC editing (June)",
+        vendor: "Alex Rivera",
+        amount: 800,
+        incurred_on: "2026-06-20",
+        recorded_by: ownerId,
+      },
+      {
+        organisation_id: organisationId,
+        client_id: cortex.id,
+        category: "ad_spend" as const,
+        description: "Meta Ads June spend",
+        vendor: "Meta",
+        amount: 1200,
+        incurred_on: "2026-06-30",
+        recorded_by: ownerId,
+      },
+      {
+        organisation_id: organisationId,
+        client_id: null,
+        category: "software" as const,
+        description: "Design tooling subscription",
+        vendor: "Figma",
+        amount: 90,
+        incurred_on: "2026-07-01",
+        recorded_by: ownerId,
+      },
+    ]);
+    if (expenseError) throw expenseError;
+
+    const { error: ratesError } = await supabase.from("member_rates").insert([
+      { organisation_id: organisationId, user_id: ownerId, hourly_cost: 85, effective_from: "2026-01-01" },
+      { organisation_id: organisationId, user_id: accountManagerId, hourly_cost: 65, effective_from: "2026-01-01" },
+      { organisation_id: organisationId, user_id: specialistId, hourly_cost: 55, effective_from: "2026-01-01" },
+      { organisation_id: organisationId, user_id: contractorId, hourly_cost: 45, effective_from: "2026-01-01" },
+    ]);
+    if (ratesError) throw ratesError;
+
+    // Log hours against Lumen's tasks so labour cost and the scope-creep
+    // alert (24h against 20 included) have real inputs.
+    const { data: lumenTasks } = await supabase
+      .from("tasks")
+      .select("id")
+      .eq("organisation_id", organisationId)
+      .eq("client_id", lumen.id)
+      .limit(3);
+    for (const [index, task] of (lumenTasks ?? []).entries()) {
+      await supabase
+        .from("tasks")
+        .update({ actual_hours: 8, assignee_id: index === 0 ? accountManagerId : specialistId })
+        .eq("id", task.id);
+    }
+
+    console.log("phase 2: retainers, contracts, invoices, payment, expenses, member rates seeded");
+  } else {
+    console.log("Commercial demo data already exists - skipping Phase 2 seed.");
+  }
+
   console.log("\nSeed complete.");
   console.log(`Sign in at http://localhost:3000/login with any demo user and password "${DEMO_PASSWORD}":`);
   for (const user of DEMO_USERS) {

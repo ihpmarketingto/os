@@ -722,6 +722,177 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["bookings"]["Row"]>;
         Relationships: [];
       };
+      proposals: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          deal_id: string | null;
+          title: string;
+          amount: number | null;
+          currency: string;
+          status: "draft" | "sent" | "accepted" | "declined" | "expired";
+          valid_until: string | null;
+          sent_at: string | null;
+          decided_at: string | null;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["proposals"]["Row"]> & {
+          organisation_id: string;
+          title: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["proposals"]["Row"]>;
+        Relationships: [];
+      };
+      contracts: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          name: string;
+          status: "draft" | "sent" | "signed" | "expired" | "terminated";
+          start_date: string | null;
+          end_date: string | null;
+          renewal_notice_days: number;
+          auto_renews: boolean;
+          value: number | null;
+          currency: string;
+          document_id: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["contracts"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["contracts"]["Row"]>;
+        Relationships: [];
+      };
+      retainers: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          name: string;
+          amount: number;
+          currency: string;
+          billing_cadence: "monthly" | "quarterly";
+          included_hours: number | null;
+          start_date: string;
+          end_date: string | null;
+          status: "active" | "paused" | "ended";
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["retainers"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          name: string;
+          amount: number;
+          start_date: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["retainers"]["Row"]>;
+        Relationships: [];
+      };
+      invoices: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          retainer_id: string | null;
+          number: string;
+          status: "draft" | "sent" | "paid" | "overdue" | "void";
+          issue_date: string;
+          due_date: string | null;
+          amount: number;
+          tax_amount: number;
+          currency: string;
+          notes: string | null;
+          paid_at: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["invoices"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          number: string;
+          amount: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["invoices"]["Row"]>;
+        Relationships: [];
+      };
+      payments: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          invoice_id: string;
+          amount: number;
+          currency: string;
+          method: "stripe" | "square" | "e_transfer" | "cheque" | "wire" | "other";
+          reference: string | null;
+          paid_at: string;
+          recorded_by: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["payments"]["Row"]> & {
+          organisation_id: string;
+          invoice_id: string;
+          amount: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["payments"]["Row"]>;
+        Relationships: [];
+      };
+      expenses: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          category: "contractor" | "software" | "ad_spend" | "ai_spend" | "other";
+          description: string;
+          vendor: string | null;
+          amount: number;
+          currency: string;
+          incurred_on: string;
+          receipt_document_id: string | null;
+          recorded_by: string | null;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["expenses"]["Row"]> & {
+          organisation_id: string;
+          description: string;
+          amount: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["expenses"]["Row"]>;
+        Relationships: [];
+      };
+      member_rates: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          user_id: string;
+          hourly_cost: number;
+          currency: string;
+          effective_from: string;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["member_rates"]["Row"]> & {
+          organisation_id: string;
+          user_id: string;
+          hourly_cost: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["member_rates"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

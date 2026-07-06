@@ -159,13 +159,36 @@ reconciliation (receipts, exports, QuickBooks architecture). No SMS or
 email may ever send without consent fields satisfied and human approval —
 that rule is durable, not phase-specific.
 
-## Phase 2 — Commercial Operations (not started)
+## Phase 2 — Commercial Operations (core complete, live-verified 2026-07-06)
 
-Proposals, contracts, retainers, invoices, payments, profitability, capacity,
-contractor costs, renewals, scope-creep alerts, revenue forecasting. Needs
-`proposals`, `contracts`, `retainers`, `invoices`, `payments`. Stripe
-adapter goes from stub to real here. 27A additions: deposit reconciliation
-(Stripe/Square), receipt/expense upload, accountant-ready CSV exports.
+**Built and verified against the live project:**
+
+- Schema (migration `0012`): `proposals`, `contracts`, `retainers`,
+  `invoices`, `payments`, `expenses`, `member_rates`, all RLS-secured.
+  Finance data is `finance` permission only (Agency Owner by default);
+  proposals ride with `crm`; client portal members can read their own
+  client's non-draft invoices and nothing else (verified as Dana).
+- Finance dashboard: MRR, outstanding/overdue invoice totals, 3-month
+  forecast (labelled a planning number), renewal-due alerts (contract and
+  retainer end dates vs notice windows), scope-creep alerts (task hours vs
+  retainer included hours, last 30 days), and tabs for invoices (status +
+  record payment, auto-flips to paid when payments cover the total),
+  retainers, contracts, proposals, expenses, and profitability by client
+  using the spec formula (revenue minus contractor costs minus internal
+  labour at member rates; software and paid-media allocations count as
+  zero until configured).
+- Home dashboard KPI row: MRR and outstanding invoices (finance roles
+  only), pipeline value, overdue tasks, approvals pending.
+- Client portal shows the client's own invoices with status.
+- Finance maths is pure and unit-tested (`packages/types/src/finance-math.ts`,
+  13 tests): MRR, gross contribution, renewal windows, scope creep,
+  forecast.
+
+**Still open in Phase 2 scope:** proposal builder UI (proposals are
+list-only; they attach to CRM deals), team capacity view, accountant CSV
+export, receipt upload against expenses, Stripe/Square adapters for real
+payment collection and deposit reconciliation (27A), churn and utilisation
+reporting.
 
 ## Phase 3 — Marketing Delivery (not started)
 

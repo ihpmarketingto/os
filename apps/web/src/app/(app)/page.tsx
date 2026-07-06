@@ -8,6 +8,10 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { serverEnv } from "@/lib/env/server";
 import { getAllIntegrationsHealth } from "@ihp/integrations";
 import { getIntegrationStatus, INTEGRATION_ENV_KEYS } from "@ihp/config";
+import { computeMrr } from "@ihp/types";
+import { hasPermission } from "@ihp/database";
+
+const cad = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
 
 const QUICK_ACTIONS = [
   { label: "Add lead", href: "/crm" },
@@ -24,7 +28,19 @@ export default async function HomePage() {
   const session = await requireSession();
   const supabase = await getSupabaseServerClient();
 
-  const [{ data: recentAudit }, { data: flags }, integrationHealth] = await Promise.all([
+  const today = new Date().toISOString().slice(0, 10);
+  const canViewFinance = await hasPermission(supabase, session.organisationId, "finance", "read");
+
+  const [
+    { data: recentAudit },
+    { data: flags },
+    integrationHealth,
+    { data: retainers },
+    { data: openInvoices },
+    { count: overdueTaskCount },
+    { count: pendingApprovalCount },
+    { data: openDeals },
+  ] = await Promise.all([
     supabase
       .from("audit_logs")
       .select("id, action, resource, resource_id, created_at, actor_type")
@@ -33,7 +49,37 @@ export default async function HomePage() {
       .limit(8),
     supabase.from("feature_flags").select("key, is_enabled, organisation_id, rollout").order("key"),
     getAllIntegrationsHealth(serverEnv),
+    canViewFinance
+      ? supabase.from("retainers").select("amount, billing_cadence, status").eq("organisation_id", session.organisationId).is("deleted_at", null)
+      : Promise.resolve({ data: [] }),
+    canViewFinance
+      ? supabase
+          .from("invoices")
+          .select("amount, tax_amount")
+          .eq("organisation_id", session.organisationId)
+          .in("status", ["sent", "overdue"])
+          .is("deleted_at", null)
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("organisation_id", session.organisationId)
+      .not("status", "in", "(complete,cancelled)")
+      .lt("due_date", today),
+    supabase
+      .from("approvals")
+      .select("id", { count: "exact", head: true })
+      .eq("organisation_id", session.organisationId)
+      .eq("status", "pending"),
+    supabase.from("deals").select("value").eq("organisation_id", session.organisationId).eq("status", "open"),
   ]);
+
+  const mrr = computeMrr((retainers ?? []) as { amount: number; billing_cadence: "monthly" | "quarterly"; status: "active" | "paused" | "ended" }[]);
+  const outstandingTotal = (openInvoices ?? []).reduce(
+    (sum, i) => sum + Number((i as { amount: number }).amount) + Number((i as { tax_amount: number }).tax_amount),
+    0,
+  );
+  const pipelineValue = (openDeals ?? []).reduce((sum, d) => sum + Number(d.value ?? 0), 0);
 
   const aiProviderStatus = getIntegrationStatus(serverEnv);
   const aiProviders = Object.keys(INTEGRATION_ENV_KEYS).filter((k) => ["openai", "gemini", "anthropic"].includes(k));
@@ -72,16 +118,13 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle className="text-base">Phase 0 foundation is live</CardTitle>
-          <CardDescription>
-            Revenue, pipeline, client health and delivery widgets activate as CRM (Phase 1), Finance (Phase 2) and
-            Marketing Delivery (Phase 3) ship. This Home view surfaces what exists today: your audit trail,
-            feature flags and integration health.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {canViewFinance ? <StatCard label="MRR" value={cad.format(mrr)} href="/finance" /> : null}
+        {canViewFinance ? <StatCard label="Outstanding invoices" value={cad.format(outstandingTotal)} href="/finance" /> : null}
+        <StatCard label="Pipeline value" value={cad.format(pipelineValue)} href="/crm" />
+        <StatCard label="Overdue tasks" value={String(overdueTaskCount ?? 0)} href="/tasks" tone={(overdueTaskCount ?? 0) > 0 ? "risk" : undefined} />
+        <StatCard label="Awaiting approval" value={String(pendingApprovalCount ?? 0)} href="/content-studio" />
+      </section>
 
       <section className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -204,4 +247,17 @@ function StatusBadge({ configured, reachable }: { configured: boolean; reachable
 
 function EmptyRow({ message }: { message: string }) {
   return <p className="text-sm text-muted-foreground">{message}</p>;
+}
+
+function StatCard({ label, value, href, tone }: { label: string; value: string; href: string; tone?: "risk" }) {
+  return (
+    <Link href={href} className="block">
+      <Card className="transition-colors hover:border-brand/50">
+        <CardHeader className="pb-2">
+          <CardDescription>{label}</CardDescription>
+          <CardTitle className={`text-xl ${tone === "risk" ? "text-risk" : ""}`}>{value}</CardTitle>
+        </CardHeader>
+      </Card>
+    </Link>
+  );
 }

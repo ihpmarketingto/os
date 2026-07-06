@@ -64,7 +64,7 @@ export default async function ClientPortalPage({
     return <p className="text-sm text-muted-foreground">No client is associated with your account yet.</p>;
   }
 
-  const [{ data: client }, { data: projects }, { data: rawApprovals }, { data: documents }, { data: meetings }] =
+  const [{ data: client }, { data: projects }, { data: rawApprovals }, { data: documents }, { data: meetings }, { data: invoices }] =
     await Promise.all([
       targetClientName ? Promise.resolve({ data: { name: targetClientName } }) : supabase.from("clients").select("name").eq("id", targetClientId).single(),
       supabase.from("projects").select("id, name, status").eq("client_id", targetClientId).eq("client_visible", true),
@@ -77,6 +77,16 @@ export default async function ClientPortalPage({
         .eq("status", "pending"),
       supabase.from("documents").select("id, name").eq("client_id", targetClientId).eq("client_visible", true).is("deleted_at", null),
       supabase.from("meetings").select("id, title, scheduled_at").eq("client_id", targetClientId).eq("client_visible", true).order("scheduled_at", { ascending: false }).limit(5),
+      // RLS restricts portal members to non-draft invoices; the status filter
+      // here is belt-and-braces for internal preview mode.
+      supabase
+        .from("invoices")
+        .select("id, number, amount, tax_amount, status, due_date")
+        .eq("client_id", targetClientId)
+        .neq("status", "draft")
+        .is("deleted_at", null)
+        .order("issue_date", { ascending: false })
+        .limit(10),
     ]);
 
   const contentApprovalIds = (rawApprovals ?? [])
@@ -120,6 +130,36 @@ export default async function ClientPortalPage({
                 </div>
               );
             })
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Invoices</CardTitle>
+          <CardDescription>Questions about an invoice? Reply to your account manager or submit a request.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {!invoices || invoices.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No invoices yet.</p>
+          ) : (
+            invoices.map((inv) => (
+              <div key={inv.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                <span className="font-medium">{inv.number}</span>
+                <span>
+                  {new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(
+                    Number(inv.amount) + Number(inv.tax_amount),
+                  )}
+                </span>
+                <span className="text-xs text-muted-foreground">{inv.due_date ? `Due ${inv.due_date}` : ""}</span>
+                <Badge
+                  variant={inv.status === "paid" ? "default" : inv.status === "overdue" ? "destructive" : "outline"}
+                  className="capitalize"
+                >
+                  {inv.status}
+                </Badge>
+              </div>
+            ))
           )}
         </CardContent>
       </Card>
