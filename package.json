@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "seed": "tsx scripts/seed.ts",
-    "migrate": "tsx scripts/migrate.ts"
+    "migrate": "tsx scripts/migrate.ts",
+    "invite": "tsx scripts/invite.ts"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",

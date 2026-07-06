@@ -55,7 +55,12 @@ export async function getCurrentSession(): Promise<CurrentSession | null> {
 export async function requireSession(): Promise<CurrentSession> {
   const session = await getCurrentSession();
   if (!session) {
-    redirect("/login");
+    // Authenticated-but-unmembered users (e.g. an uninvited Google account)
+    // go to /no-access; sending them to /login would loop, because the
+    // proxy bounces signed-in users straight back off /login.
+    const supabase = await getSupabaseServerClient();
+    const { data } = await supabase.auth.getUser();
+    redirect(data.user ? "/no-access" : "/login");
   }
   return session;
 }
