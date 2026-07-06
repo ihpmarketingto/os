@@ -85,6 +85,7 @@ export interface Database {
           health_score: number | null;
           health_score_updated_at: string | null;
           health_score_explanation: string | null;
+          gohighlevel_mode: "source_of_truth" | "automation_engine" | "booking_layer" | "migration_source" | "not_used";
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
@@ -403,6 +404,22 @@ export interface Database {
           owner_id: string | null;
           notes: string | null;
           converted_client_id: string | null;
+          utm_source: string | null;
+          utm_medium: string | null;
+          utm_campaign: string | null;
+          utm_content: string | null;
+          utm_term: string | null;
+          meta_campaign: string | null;
+          meta_ad_set: string | null;
+          meta_ad: string | null;
+          click_id: string | null;
+          landing_page: string | null;
+          form_submitted: string | null;
+          lead_magnet: string | null;
+          first_response_at: string | null;
+          sms_consent: boolean;
+          sms_consent_captured_at: string | null;
+          sms_opted_out_at: string | null;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
@@ -672,6 +689,37 @@ export interface Database {
           body: string;
         };
         Update: Partial<Database["public"]["Tables"]["notes"]["Row"]>;
+        Relationships: [];
+      };
+      bookings: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          lead_id: string | null;
+          deal_id: string | null;
+          source: "calendly" | "google_calendar" | "gohighlevel" | "internal";
+          external_ref: string | null;
+          title: string;
+          scheduled_at: string;
+          duration_minutes: number | null;
+          status: "booked" | "confirmed" | "attended" | "rescheduled" | "cancelled" | "no_show";
+          deposit_status: "not_required" | "pending" | "paid" | "refunded";
+          deposit_amount: number | null;
+          deposit_provider: "stripe" | "square" | null;
+          outcome: "closed_won" | "closed_lost" | null;
+          revenue: number | null;
+          owner_id: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["bookings"]["Row"]> & {
+          organisation_id: string;
+          title: string;
+          scheduled_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["bookings"]["Row"]>;
         Relationships: [];
       };
     };

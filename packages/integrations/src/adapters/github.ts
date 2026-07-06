@@ -15,7 +15,9 @@ export function createGithubAdapter(env: ServerEnv): IntegrationAdapter {
   return {
     provider: "github",
     displayName: "GitHub",
+    kind: "native",
     requiredScopes: ["repo:status", "public_repo"],
+    requiredCredentials: ["GITHUB_OAUTH_CLIENT_ID", "GITHUB_OAUTH_CLIENT_SECRET"],
     isConfigured(): boolean {
       return Boolean(env.GITHUB_OAUTH_CLIENT_ID && env.GITHUB_OAUTH_CLIENT_SECRET);
     },

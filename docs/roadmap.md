@@ -112,12 +112,48 @@ project yet — see the Phase 0 section above for the same caveat. Lint,
 typecheck, unit tests and `next build` all pass; the actual RLS behaviour
 and live CRUD flows need a real project to verify end to end.
 
+## Section 27A — Lead Acquisition, Nurturing and Booking (foundation laid)
+
+The full spec lives in the knowledge base
+(`IHP_Knowledge_Base/00_Core/IHP_OS_Section_27A_Lead_Acquisition_Spec.md`).
+What exists in the codebase today (migration `0011`):
+
+- **Lead attribution fields** on `leads`: UTM source/medium/campaign/
+  content/term, Meta campaign/ad set/ad, click ID, landing page, form
+  submitted, lead magnet, time-to-first-response, and SMS consent/opt-out
+  fields — captured from day one so no backfill is needed when the
+  reporting layer arrives.
+- **`bookings` table**: source (Calendly, Google Calendar, GoHighLevel,
+  internal), full show-up lifecycle (booked → confirmed → attended /
+  rescheduled / cancelled / no-show), deposit status and provider
+  (Stripe/Square), outcome (closed won/lost) and revenue.
+- **`clients.gohighlevel_mode`**: per-client decision on what GoHighLevel
+  is for that client (source of truth, automation engine, booking layer,
+  migration source, not used).
+- **Integration slots** registered with honest classification
+  (native/webhook/csv/planned) and required-credentials lists for
+  GoHighLevel, Meta Pixel, Meta Conversions API, GA4, GTM, Calendly,
+  Square, Twilio, Discord, Zapier, n8n, QuickBooks — see
+  `docs/integrations.md`.
+
+Still to build (lands across Phases 2, 3 and 6): the nurture sequence
+engine (including the default 10-day cold-lead sequence), SMS compliance
+workflows (consent, quiet hours, opt-out, human takeover), booking
+reminder automation, the Meta funnel and testing framework UI, the
+attribution reporting dashboard (CPL, cost per booking, show rates, ROAS),
+duplicate-detection/merge for GoHighLevel sync, the AI content/video
+production workflows, provider cost allocation, and financial
+reconciliation (receipts, exports, QuickBooks architecture). No SMS or
+email may ever send without consent fields satisfied and human approval —
+that rule is durable, not phase-specific.
+
 ## Phase 2 — Commercial Operations (not started)
 
 Proposals, contracts, retainers, invoices, payments, profitability, capacity,
 contractor costs, renewals, scope-creep alerts, revenue forecasting. Needs
 `proposals`, `contracts`, `retainers`, `invoices`, `payments`. Stripe
-adapter goes from stub to real here.
+adapter goes from stub to real here. 27A additions: deposit reconciliation
+(Stripe/Square), receipt/expense upload, accountant-ready CSV exports.
 
 ## Phase 3 — Marketing Delivery (not started)
 
@@ -125,6 +161,13 @@ Campaigns, paid media/SEO/website/email/PR/events reporting, the reporting
 engine. Needs `campaigns`, `campaign_metrics`, `reports`,
 `report_snapshots`, `influencers`, `media_contacts`, `outreach`, `events`,
 `event_attendees`. Meta Ads, Google Ads, Klaviyo adapters go live here.
+27A additions: Meta funnel and testing framework (objective, offer,
+audience, budget, creative testing plan, pixel/CAPI QA, decision rules,
+launch checklist), attribution reporting (CPL, cost per qualified lead,
+cost per booking/attended/deposit/sale, revenue by source, ROAS,
+lead-to-booking, booking-to-show, show-to-sale, response-time
+performance), and the configurable testing-budget guidance (suggested CAD
+$50/day default, never presented as a performance guarantee).
 
 ## Phase 4 — Landing Page Factory (not started)
 
@@ -143,6 +186,12 @@ real provider SDKs into `@ihp/ai-router` and builds the chat UI.
 
 ## Phase 6 — Advanced Automation (not started)
 
+27A additions: nurture sequence engine (12 template flows including the
+default 10-day cold-lead sequence with editable timing/content), booking
+and show-up workflows (confirmations, reminders, no-show recovery,
+reschedule, post-appointment follow-up), SMS compliance layer (consent
+capture, opt-out, quiet hours, delivery status, reply routing, human
+takeover) — all sends gated on human approval per the AI action rules.
 Workflow builder, event-triggered automations, notifications, escalations,
 scheduled reporting. Needs `automation_rules`, `automation_runs`,
 `notifications`.

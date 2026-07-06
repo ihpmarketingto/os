@@ -52,83 +52,89 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * IHP Marketing brand kit (see IHP_Knowledge_Base/05_Brand_and_Assets):
+ *   Wine Plum #622249 (primary) · Plum Deep #310C25 · Gold #C89B41 (accent)
+ *   Cream #F8F6F2 (background) · Charcoal #21242C (text)
+ * Headings: Times New Roman (serif) · Body: Roboto (sans-serif)
+ */
 :root {
-  --font-sans: var(--font-geist-sans);
-  --font-heading: var(--font-newsreader);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --font-sans: var(--font-roboto);
+  --font-heading: "Times New Roman", Times, Georgia, serif;
+  --background: #f8f6f2;
+  --foreground: #21242c;
+  --card: #ffffff;
+  --card-foreground: #21242c;
+  --popover: #ffffff;
+  --popover-foreground: #21242c;
+  --primary: #622249;
+  --primary-foreground: #f8f6f2;
+  --secondary: #efeae2;
+  --secondary-foreground: #622249;
+  --muted: #f0ece5;
+  --muted-foreground: #6f6a66;
+  --accent: #f2e8d4;
+  --accent-foreground: #21242c;
+  --destructive: #b3372e;
+  --border: #e4ded4;
+  --input: #e4ded4;
+  --ring: #622249;
+  --chart-1: #622249;
+  --chart-2: #c89b41;
+  --chart-3: #96637f;
+  --chart-4: #310c25;
+  --chart-5: #ddc189;
   --radius: 0.375rem;
-  --brand: oklch(0.52 0.11 55);
-  --brand-foreground: oklch(0.99 0.01 90);
-  --risk: oklch(0.58 0.19 25);
-  --success: oklch(0.55 0.13 155);
-  --sidebar: oklch(0.99 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --brand: #c89b41;
+  --brand-foreground: #310c25;
+  --risk: #b3372e;
+  --success: #3e7a54;
+  --sidebar: #310c25;
+  --sidebar-foreground: #f2e9ee;
+  --sidebar-primary: #c89b41;
+  --sidebar-primary-foreground: #310c25;
+  --sidebar-accent: #4d1d3b;
+  --sidebar-accent-foreground: #f8f6f2;
+  --sidebar-border: #4d1d3b;
+  --sidebar-ring: #c89b41;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --brand: oklch(0.72 0.13 60);
-  --brand-foreground: oklch(0.16 0.02 55);
-  --risk: oklch(0.68 0.19 25);
-  --success: oklch(0.68 0.14 155);
-  --sidebar: oklch(0.17 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #1a0b15;
+  --foreground: #f2ede6;
+  --card: #26101f;
+  --card-foreground: #f2ede6;
+  --popover: #26101f;
+  --popover-foreground: #f2ede6;
+  --primary: #c89b41;
+  --primary-foreground: #310c25;
+  --secondary: #3b1730;
+  --secondary-foreground: #f2ede6;
+  --muted: #33142a;
+  --muted-foreground: #b3a4ad;
+  --accent: #3b1730;
+  --accent-foreground: #f2ede6;
+  --destructive: #d96a5f;
+  --border: rgba(248, 246, 242, 0.12);
+  --input: rgba(248, 246, 242, 0.16);
+  --ring: #c89b41;
+  --chart-1: #c89b41;
+  --chart-2: #b06a92;
+  --chart-3: #ddc189;
+  --chart-4: #8a5c76;
+  --chart-5: #62b183;
+  --brand: #c89b41;
+  --brand-foreground: #310c25;
+  --risk: #d96a5f;
+  --success: #62b183;
+  --sidebar: #150810;
+  --sidebar-foreground: #f2e9ee;
+  --sidebar-primary: #c89b41;
+  --sidebar-primary-foreground: #310c25;
+  --sidebar-accent: #3b1730;
+  --sidebar-accent-foreground: #f8f6f2;
+  --sidebar-border: rgba(248, 246, 242, 0.1);
+  --sidebar-ring: #c89b41;
 }
 
 @layer base {

@@ -2,23 +2,18 @@ import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getAllIntegrationsHealth } from "@ihp/integrations";
+import { buildIntegrationRegistry, getAllIntegrationsHealth } from "@ihp/integrations";
 import { serverEnv } from "@/lib/env/server";
 import { requireSession } from "@/lib/auth/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 const OAUTH_PROVIDERS = new Set(["github", "google_workspace"]);
 
-const PLANNED_PHASE: Record<string, number> = {
-  stripe: 2,
-  meta_ads: 3,
-  google_ads: 3,
-  klaviyo: 3,
-  vercel: 4,
-  netlify: 4,
-  cloudflare_pages: 4,
-  resend: 1,
-  sendgrid: 1,
+const KIND_LABEL: Record<string, string> = {
+  native: "Native API",
+  webhook: "Webhook-based",
+  csv: "CSV import/export",
+  planned: "Planned",
 };
 
 export default async function IntegrationsPage({
@@ -30,6 +25,7 @@ export default async function IntegrationsPage({
   const { connected, error } = await searchParams;
   const supabase = await getSupabaseServerClient();
 
+  const registry = buildIntegrationRegistry(serverEnv);
   const [health, { data: connections }] = await Promise.all([
     getAllIntegrationsHealth(serverEnv),
     supabase
@@ -46,7 +42,8 @@ export default async function IntegrationsPage({
         <h1 className="font-heading text-2xl">Integrations</h1>
         <p className="text-sm text-muted-foreground">
           OAuth tokens are encrypted before storage and never exposed to the browser. Read-only, least-privilege
-          scopes are requested by default.
+          scopes are requested by default. Badges show whether each integration is native, webhook-based, CSV-based
+          or planned.
         </p>
       </div>
 
@@ -67,24 +64,29 @@ export default async function IntegrationsPage({
 
       <div className="grid gap-4 md:grid-cols-2">
         {health.map((h) => {
+          const adapter = registry[h.provider];
           const connection = connectionByProvider.get(h.provider);
           const isConnected = connection?.status === "connected";
           const canOauth = OAUTH_PROVIDERS.has(h.provider);
-          const plannedPhase = PLANNED_PHASE[h.provider];
 
           return (
             <Card key={h.provider}>
               <CardHeader className="flex-row items-center justify-between space-y-0">
                 <div>
-                  <CardTitle className="text-base capitalize">{h.provider.replace(/_/g, " ")}</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    {adapter.displayName}
+                    <Badge variant="secondary" className="text-[10px] font-normal">
+                      {KIND_LABEL[adapter.kind]}
+                    </Badge>
+                  </CardTitle>
                   <CardDescription>
                     {isConnected
                       ? `Connected · scopes: ${connection?.scopes?.join(", ") || "none"}`
-                      : plannedPhase
-                        ? `Adapter ships in Phase ${plannedPhase}`
-                        : h.configured
-                          ? "Configured, not yet connected"
-                          : "Awaiting OAuth client credentials"}
+                      : h.configured
+                        ? "Configured, not yet connected"
+                        : adapter.requiredCredentials.length > 0
+                          ? `Needs: ${adapter.requiredCredentials.join(", ")}`
+                          : "Awaiting credentials"}
                   </CardDescription>
                 </div>
                 {isConnected ? (
@@ -106,7 +108,7 @@ export default async function IntegrationsPage({
                   )
                 ) : (
                   <Button size="sm" variant="outline" disabled>
-                    Coming in Phase {plannedPhase ?? "TBD"}
+                    {adapter.kind === "planned" ? "Adapter not yet implemented" : "Supply credentials to activate"}
                   </Button>
                 )}
               </CardContent>

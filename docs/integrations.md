@@ -4,6 +4,40 @@ Every integration is optional at boot (see `packages/config/src/env.ts`) —
 the app runs fine with zero integrations configured; each one just shows as
 "not connected" in **Settings > Integrations** until you add its env vars.
 
+## Integration classification (spec section 27A)
+
+| Provider | Kind | Status | Credentials required before activation |
+| --- | --- | --- | --- |
+| GitHub | Native | Working OAuth flow | OAuth client ID + secret |
+| Google Workspace | Native | Working OAuth flow | OAuth client ID + secret |
+| Stripe | Native | Planned (Phase 2) | Secret key, webhook secret |
+| Resend / SendGrid | Native | Planned (Phase 1+) | API key |
+| Meta Ads | Native | Planned (Phase 3) | System-user token, ad account ID |
+| Google Ads | Native | Planned (Phase 3) | Developer token, OAuth client, customer ID |
+| Klaviyo | Native | Planned (Phase 3) | Private API key |
+| Vercel / Netlify / Cloudflare Pages | Native | Planned (Phase 4) | API token |
+| GoHighLevel | Native | Planned (27A) | Agency API key or OAuth app, location ID per client |
+| Meta Pixel | Webhook/client-side | Planned (27A) | Pixel ID per client (no secret) |
+| Meta Conversions API | Native | Planned (27A) | Pixel ID, CAPI access token per client |
+| GA4 | Native | Planned (27A) | Property ID, measurement ID, Data API service account |
+| Google Tag Manager | Client-side | Planned (27A) | Container ID per client |
+| Calendly | Webhook | Planned (27A) | Personal access token or OAuth app, webhook signing key |
+| Square | Native | Planned (27A) | Access token, location ID |
+| Twilio SMS | Native | Planned (27A) | Account SID, auth token, messaging service SID, registered sender |
+| Discord | Webhook | Planned (27A) | Webhook URL per channel |
+| Zapier / n8n | Webhook | Planned (27A) | Inbound webhook URLs |
+| QuickBooks | Native | Future optional | OAuth app plus exact accounting requirements |
+
+CSV import/export is the supported interim path for Meta Ads, Google Ads
+and GA4 reporting data until their native adapters activate in Phase 3.
+
+Per-client GoHighLevel positioning is stored on
+`clients.gohighlevel_mode`: `source_of_truth`, `automation_engine`,
+`booking_layer`, `migration_source`, or `not_used` (default). The Agency
+Owner sets this per client; sync behaviour in later phases keys off it.
+Duplicate-detection and merge controls are required before any GoHighLevel
+contact sync goes live.
+
 ## GitHub (working OAuth flow)
 
 1. Create a GitHub OAuth App at

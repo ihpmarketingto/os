@@ -24,7 +24,9 @@ export function createGoogleWorkspaceAdapter(env: ServerEnv): IntegrationAdapter
   return {
     provider: "google_workspace",
     displayName: "Google Workspace",
+    kind: "native",
     requiredScopes: [],
+    requiredCredentials: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"],
     isConfigured(): boolean {
       return Boolean(env.GOOGLE_OAUTH_CLIENT_ID && env.GOOGLE_OAUTH_CLIENT_SECRET);
     },
