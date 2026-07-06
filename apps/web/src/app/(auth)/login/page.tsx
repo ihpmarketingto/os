@@ -1,8 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "./login-form";
-import { GoogleSignInButton } from "./google-button";
 import { MagicLinkForm } from "./magic-link-form";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -25,7 +23,8 @@ export default async function LoginPage({
         <p className="text-sm font-medium text-brand">IHP OS</p>
         <CardTitle className="font-heading text-2xl">Sign in to your workspace</CardTitle>
         <CardDescription>
-          Access is invite-only. Contact your Agency Owner if you need an account.
+          Enter your email and we&rsquo;ll send you a sign-in link. Access is invite-only: contact your Agency
+          Owner if you need an account.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -36,30 +35,16 @@ export default async function LoginPage({
           </div>
         ) : null}
 
-        <GoogleSignInButton redirectTo={target} />
+        <MagicLinkForm redirectTo={target} />
 
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-xs text-muted-foreground">or</span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
-
-        <Tabs defaultValue="magic-link">
-          <TabsList className="w-full">
-            <TabsTrigger value="magic-link" className="flex-1">
-              Email link
-            </TabsTrigger>
-            <TabsTrigger value="password" className="flex-1">
-              Password
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="magic-link" className="pt-3">
-            <MagicLinkForm redirectTo={target} />
-          </TabsContent>
-          <TabsContent value="password" className="pt-3">
+        <details className="group">
+          <summary className="cursor-pointer list-none text-xs text-muted-foreground underline-offset-4 hover:underline">
+            Sign in with a password instead
+          </summary>
+          <div className="pt-3">
             <LoginForm redirectTo={target} />
-          </TabsContent>
-        </Tabs>
+          </div>
+        </details>
       </CardContent>
     </Card>
   );
