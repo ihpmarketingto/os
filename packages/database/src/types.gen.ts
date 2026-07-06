@@ -75,6 +75,16 @@ export interface Database {
           account_manager_id: string | null;
           ai_enabled: boolean;
           ai_settings: Json;
+          website: string | null;
+          social_handles: Json;
+          brand_kit: Json;
+          contract_start_date: string | null;
+          contract_end_date: string | null;
+          renewal_notice_days: number | null;
+          retainer_amount: number | null;
+          health_score: number | null;
+          health_score_updated_at: string | null;
+          health_score_explanation: string | null;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
@@ -354,6 +364,314 @@ export interface Database {
           period_end: string;
         };
         Update: Partial<Database["public"]["Tables"]["ai_usage"]["Row"]>;
+        Relationships: [];
+      };
+      contacts: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          full_name: string;
+          email: string | null;
+          phone: string | null;
+          job_title: string | null;
+          company_name: string | null;
+          is_primary: boolean;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["contacts"]["Row"]> & {
+          organisation_id: string;
+          full_name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["contacts"]["Row"]>;
+        Relationships: [];
+      };
+      leads: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          contact_id: string | null;
+          company_name: string;
+          industry: string | null;
+          source: string | null;
+          status: "new" | "qualified" | "disqualified" | "converted";
+          score: number;
+          estimated_value: number | null;
+          service_interest: string[];
+          owner_id: string | null;
+          notes: string | null;
+          converted_client_id: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["leads"]["Row"]> & {
+          organisation_id: string;
+          company_name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["leads"]["Row"]>;
+        Relationships: [];
+      };
+      deals: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          lead_id: string | null;
+          client_id: string | null;
+          title: string;
+          stage:
+            | "new_lead"
+            | "qualified"
+            | "discovery_call_booked"
+            | "discovery_completed"
+            | "proposal_sent"
+            | "negotiation"
+            | "verbal_yes"
+            | "contract_sent"
+            | "closed_won"
+            | "closed_lost"
+            | "nurture";
+          value: number | null;
+          currency: string;
+          expected_close_date: string | null;
+          owner_id: string | null;
+          status: "open" | "won" | "lost";
+          win_loss_reason: string | null;
+          created_at: string;
+          updated_at: string;
+          closed_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["deals"]["Row"]> & {
+          organisation_id: string;
+          title: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["deals"]["Row"]>;
+        Relationships: [];
+      };
+      task_templates: {
+        Row: {
+          id: string;
+          organisation_id: string | null;
+          name: string;
+          category: string;
+          description: string | null;
+          default_tasks: Json;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["task_templates"]["Row"]> & { name: string; category: string };
+        Update: Partial<Database["public"]["Tables"]["task_templates"]["Row"]>;
+        Relationships: [];
+      };
+      projects: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          name: string;
+          service_type: string | null;
+          project_type: string | null;
+          budget: number | null;
+          start_date: string | null;
+          end_date: string | null;
+          owner_id: string | null;
+          status: "planning" | "active" | "on_hold" | "complete" | "cancelled";
+          client_visible: boolean;
+          source_template_id: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["projects"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["projects"]["Row"]>;
+        Relationships: [];
+      };
+      milestones: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          project_id: string;
+          name: string;
+          due_date: string | null;
+          status: "not_started" | "in_progress" | "complete";
+          sort_order: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["milestones"]["Row"]> & {
+          organisation_id: string;
+          project_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["milestones"]["Row"]>;
+        Relationships: [];
+      };
+      tasks: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          project_id: string | null;
+          task_template_id: string | null;
+          title: string;
+          category: string | null;
+          priority: "low" | "medium" | "high" | "urgent";
+          assignee_id: string | null;
+          reviewer_id: string | null;
+          due_date: string | null;
+          start_date: string | null;
+          estimated_hours: number | null;
+          actual_hours: number | null;
+          billable: boolean;
+          status:
+            | "not_started"
+            | "in_progress"
+            | "waiting_on_internal_review"
+            | "waiting_on_client"
+            | "blocked"
+            | "complete"
+            | "cancelled";
+          created_at: string;
+          updated_at: string;
+          completed_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["tasks"]["Row"]> & {
+          organisation_id: string;
+          title: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["tasks"]["Row"]>;
+        Relationships: [];
+      };
+      content_items: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          platform: string | null;
+          content_type: string | null;
+          objective: string | null;
+          hook: string | null;
+          caption: string | null;
+          cta: string | null;
+          brief: string | null;
+          owner_id: string | null;
+          reviewer_id: string | null;
+          approver_id: string | null;
+          due_date: string | null;
+          publish_date: string | null;
+          status:
+            | "idea"
+            | "brief_needed"
+            | "in_production"
+            | "internal_review"
+            | "client_review"
+            | "revisions"
+            | "approved"
+            | "scheduled"
+            | "published"
+            | "archived";
+          client_visible: boolean;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["content_items"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["content_items"]["Row"]>;
+        Relationships: [];
+      };
+      approvals: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          subject_type: "content_item" | "document" | "report";
+          subject_id: string;
+          requested_by: string | null;
+          status: "pending" | "approved" | "changes_requested";
+          decision_notes: string | null;
+          requested_at: string;
+          decided_by: string | null;
+          decided_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["approvals"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          subject_type: Database["public"]["Tables"]["approvals"]["Row"]["subject_type"];
+          subject_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["approvals"]["Row"]>;
+        Relationships: [];
+      };
+      meetings: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          title: string;
+          meeting_type: "discovery_call" | "internal" | "client_review" | "other";
+          scheduled_at: string;
+          duration_minutes: number | null;
+          meeting_link: string | null;
+          notes: string | null;
+          client_visible: boolean;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["meetings"]["Row"]> & {
+          organisation_id: string;
+          title: string;
+          scheduled_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["meetings"]["Row"]>;
+        Relationships: [];
+      };
+      documents: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          project_id: string | null;
+          name: string;
+          storage_path: string;
+          file_type: string | null;
+          size_bytes: number | null;
+          client_visible: boolean;
+          uploaded_by: string | null;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["documents"]["Row"]> & {
+          organisation_id: string;
+          name: string;
+          storage_path: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["documents"]["Row"]>;
+        Relationships: [];
+      };
+      notes: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          subject_type: "client" | "lead" | "deal" | "project" | "task" | null;
+          subject_id: string | null;
+          author_id: string | null;
+          body: string;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["notes"]["Row"]> & {
+          organisation_id: string;
+          body: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["notes"]["Row"]>;
         Relationships: [];
       };
     };

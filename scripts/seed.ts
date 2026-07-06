@@ -215,6 +215,189 @@ async function main() {
   );
   if (flagError) throw flagError;
 
+  const { count: existingLeadsCount } = await supabase
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .eq("organisation_id", organisationId);
+
+  if (!existingLeadsCount) {
+    const bloom = clientBySlug.get("bloom-beauty-bar")!;
+    const voltway = clientBySlug.get("voltway-electric")!;
+    const nightshade = clientBySlug.get("nightshade-live")!;
+    const ascend = clientBySlug.get("ascend-coaching-collective")!;
+
+    const { data: leadRows, error: leadsError } = await supabase
+      .from("leads")
+      .insert([
+        {
+          organisation_id: organisationId,
+          company_name: "Sable & Stone Spa",
+          industry: "Beauty and Wellness",
+          source: "referral",
+          status: "qualified",
+          score: 80,
+          estimated_value: 4500,
+          service_interest: ["social", "paid_media"],
+          owner_id: accountManagerId,
+        },
+        {
+          organisation_id: organisationId,
+          company_name: "Northline Fitness Studios",
+          industry: "Coaching / Marketplace",
+          source: "inbound",
+          status: "new",
+          score: 35,
+          estimated_value: 2000,
+          service_interest: ["seo"],
+          owner_id: accountManagerId,
+        },
+        {
+          organisation_id: organisationId,
+          company_name: "Harbourfront Ticketed Series",
+          industry: "Events",
+          source: "cold outreach",
+          status: "new",
+          score: 15,
+          service_interest: [],
+          owner_id: accountManagerId,
+        },
+      ])
+      .select("id, company_name");
+    if (leadsError) throw leadsError;
+    console.log(`leads: ${leadRows.length}`);
+
+    const { error: dealsError } = await supabase.from("deals").insert([
+      {
+        organisation_id: organisationId,
+        lead_id: leadRows.find((l) => l.company_name === "Sable & Stone Spa")!.id,
+        title: "Sable & Stone Spa — Social + Paid Retainer",
+        stage: "proposal_sent",
+        value: 4500,
+        expected_close_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+        owner_id: accountManagerId,
+      },
+      {
+        organisation_id: organisationId,
+        client_id: bloom.id,
+        title: "Bloom Beauty Bar — SEO upsell",
+        stage: "negotiation",
+        value: 1800,
+        owner_id: accountManagerId,
+      },
+      {
+        organisation_id: organisationId,
+        client_id: voltway.id,
+        title: "Voltway Electric — Website rebuild",
+        stage: "discovery_completed",
+        value: 9000,
+        owner_id: accountManagerId,
+      },
+    ]);
+    if (dealsError) throw dealsError;
+    console.log("deals: 3");
+
+    const { data: onboardingTemplate } = await supabase
+      .from("task_templates")
+      .select("id, default_tasks")
+      .eq("name", "Client Onboarding")
+      .is("organisation_id", null)
+      .single();
+
+    const { data: project, error: projectError } = await supabase
+      .from("projects")
+      .insert({
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        name: "Client Onboarding",
+        service_type: "onboarding",
+        owner_id: accountManagerId,
+        status: "active",
+        client_visible: true,
+        source_template_id: onboardingTemplate?.id ?? null,
+      })
+      .select("id")
+      .single();
+    if (projectError) throw projectError;
+
+    if (onboardingTemplate) {
+      const defaultTasks = (onboardingTemplate.default_tasks ?? []) as { title: string; category: string; due_offset_days: number }[];
+      const today = new Date();
+      const taskRows = defaultTasks.map((t, i) => {
+        const due = new Date(today);
+        due.setDate(due.getDate() + t.due_offset_days);
+        return {
+          organisation_id: organisationId,
+          client_id: lumen.id,
+          project_id: project.id,
+          task_template_id: onboardingTemplate.id,
+          title: t.title,
+          category: t.category,
+          due_date: due.toISOString().slice(0, 10),
+          assignee_id: i % 2 === 0 ? accountManagerId : specialistId,
+          status: i === 0 ? ("complete" as const) : ("not_started" as const),
+        };
+      });
+      const { error: tasksError } = await supabase.from("tasks").insert(taskRows);
+      if (tasksError) throw tasksError;
+      console.log(`tasks: ${taskRows.length} (Lumen & Co onboarding)`);
+    }
+
+    const { data: contentItem, error: contentError } = await supabase
+      .from("content_items")
+      .insert({
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        platform: "Instagram",
+        content_type: "Reel",
+        hook: "The 3-step night routine dermatologists keep recommending",
+        caption: "Draft caption pending client approval.",
+        owner_id: specialistId,
+        status: "client_review",
+        client_visible: true,
+      })
+      .select("id")
+      .single();
+    if (contentError) throw contentError;
+
+    const { error: approvalError2 } = await supabase.from("approvals").insert({
+      organisation_id: organisationId,
+      client_id: lumen.id,
+      subject_type: "content_item",
+      subject_id: contentItem.id,
+      requested_by: specialistId,
+      status: "pending",
+    });
+    if (approvalError2) throw approvalError2;
+    console.log("content_items: 1 (awaiting client approval at Lumen & Co)");
+
+    const { error: meetingError } = await supabase.from("meetings").insert({
+      organisation_id: organisationId,
+      client_id: lumen.id,
+      title: "Monthly strategy check-in",
+      meeting_type: "client_review",
+      scheduled_at: new Date(Date.now() - 5 * 86400000).toISOString(),
+      duration_minutes: 30,
+      notes: "Reviewed Q3 priorities and content calendar.",
+      client_visible: true,
+      created_by: accountManagerId,
+    });
+    if (meetingError) throw meetingError;
+
+    const { error: noteError } = await supabase.from("notes").insert({
+      organisation_id: organisationId,
+      client_id: lumen.id,
+      subject_type: "client",
+      subject_id: lumen.id,
+      author_id: accountManagerId,
+      body: "Client mentioned interest in expanding into Google Ads next quarter.",
+    });
+    if (noteError) throw noteError;
+
+    console.log(`${nightshade.name} and ${ascend.name} are seeded with no pipeline/delivery data yet — good for a from-scratch demo.`);
+  } else {
+    console.log("Pipeline/delivery demo data already exists — skipping leads/deals/projects/tasks/content seed.");
+  }
+
   console.log("\nSeed complete.");
   console.log(`Sign in at http://localhost:3000/login with any demo user and password "${DEMO_PASSWORD}":`);
   for (const user of DEMO_USERS) {

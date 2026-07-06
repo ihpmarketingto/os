@@ -59,14 +59,58 @@ health), not the full executive dashboard from the spec (that needs Phase
 
 **Setup**: see root `README.md`.
 
-## Phase 1 — Core Agency Operations (not started)
+## Phase 1 — Core Agency Operations (complete)
 
-CRM, Client 360, Projects, Tasks, service templates, Content Studio,
-Approvals, Notes, Documents, Meetings, client health score, basic client
-portal. Needs new tables: `contacts`, `leads`, `deals`, `notes`, `documents`,
-`document_chunks`, `meetings`, `projects`, `milestones`, `tasks`,
-`task_templates`, `content_items`, `content_assets`, `approvals`,
-`service_packages`, `client_services`.
+**What was built**
+
+- Schema (`supabase/migrations/0006`–`0010`): expanded `clients` into a real
+  Client 360 profile (website, social handles, brand kit, contract dates,
+  retainer, cached health score); `contacts`, `leads`, `deals` (CRM);
+  `task_templates`, `projects`, `milestones`, `tasks`, `content_items`,
+  `approvals`, `meetings`, `documents`, `notes` (delivery); a private
+  Supabase Storage bucket with path-based RLS for documents.
+- CRM (`/crm`): pipeline kanban across all 11 deal stages, a leads table
+  with an explainable lead score (`computeLeadScore` in
+  `packages/types`), "convert lead to deal" and "convert deal to client"
+  (which also spins up an onboarding project + tasks from the Client
+  Onboarding template).
+- Client 360 (`/clients`, `/clients/[slug]`): overview, live health score
+  with a plain-English explanation (`computeClientHealthScore`), projects,
+  tasks, content, documents, meetings and notes for that client, and the
+  per-client AI-enabled toggle.
+- Projects and Tasks (`/projects`, `/tasks`): create-from-template flow
+  (14 system templates seeded in `0009`), status boards for both, task
+  assignment.
+- Content Studio (`/content-studio`): full status board (Idea → Published),
+  moving an item to Client Review automatically opens an `approvals` row
+  and flips `client_visible` on.
+- Documents (`/documents`): upload with file-type/size validation, stored
+  under `{org}/{client}/{uuid}-{filename}`, downloaded only through
+  `/api/documents/[id]/download`, which checks the `documents` table (RLS)
+  with the requester's own session before minting a 60-second signed URL
+  with the service-role client.
+- Client Portal (`/client-portal`): a genuinely separate, minimal shell (no
+  internal sidebar) for `client_admin`/`client_collaborator` sessions —
+  enforced both by a redirect in `proxy.ts` (any other path bounces back
+  here) and by RLS (`client_visible` flags on projects/content/documents/
+  meetings). Internal users get a client picker to preview any client's
+  portal view.
+- Seed data extended with 3 leads, 3 deals across different stages, an
+  onboarding project with tasks, one content item mid-approval, a meeting,
+  and a note.
+
+**Deliberately out of scope for this pass** (noted so it's not mistaken for
+an oversight): duplicate-detection, bulk CRM import/export, a dedicated
+contacts page (contacts exist in the schema but there's no standalone CRUD
+UI yet — they're created inline via leads), drag-and-drop kanban (stage/
+status changes are a dropdown, not a drag gesture), and a fully configurable
+lead-scoring engine (the current scorer is a fixed, explainable formula, not
+admin-configurable).
+
+**Known limitation**: none of this has been tested against a live Supabase
+project yet — see the Phase 0 section above for the same caveat. Lint,
+typecheck, unit tests and `next build` all pass; the actual RLS behaviour
+and live CRUD flows need a real project to verify end to end.
 
 ## Phase 2 — Commercial Operations (not started)
 

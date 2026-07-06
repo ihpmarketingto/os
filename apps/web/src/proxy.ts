@@ -35,6 +35,27 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
+  // Client portal roles only ever see the client portal — never the
+  // internal sidebar/CRM/finance/etc, even if they guess the URL. RLS
+  // would block their queries either way, but redirecting keeps the UI
+  // honest about what they can and can't do.
+  if (user && !isPublicPath) {
+    const { data: membership } = await supabase
+      .from("organisation_members")
+      .select("roles(slug)")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+
+    const roleSlug = (membership?.roles as unknown as { slug: string } | null)?.slug;
+    const isClientRole = roleSlug === "client_admin" || roleSlug === "client_collaborator";
+
+    if (isClientRole && !request.nextUrl.pathname.startsWith("/client-portal")) {
+      return NextResponse.redirect(new URL("/client-portal", request.url));
+    }
+  }
+
   return response;
 }
 
