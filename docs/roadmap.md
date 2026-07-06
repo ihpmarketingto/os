@@ -107,10 +107,22 @@ status changes are a dropdown, not a drag gesture), and a fully configurable
 lead-scoring engine (the current scorer is a fixed, explainable formula, not
 admin-configurable).
 
-**Known limitation**: none of this has been tested against a live Supabase
-project yet — see the Phase 0 section above for the same caveat. Lint,
-typecheck, unit tests and `next build` all pass; the actual RLS behaviour
-and live CRUD flows need a real project to verify end to end.
+**Live verification (2026-07-06)**: connected to the production Supabase
+project (`jpqclxiolvrqfxvcfdik`). All 11 migrations applied via
+`npm run migrate`; demo data seeded via `npm run seed`. Verified in the
+browser against real RLS: agency-owner login, lead intake, deal stage
+changes, closed-won conversion into a client with an auto-generated
+onboarding project and template tasks, client health score, sign-out, and
+the client portal as a client_admin (scoped to their own client only,
+pending content approval visible and decidable, content status flip
+recorded, every step in the audit trail). Live-fire fixes made during
+verification: batch inserts need explicit values for not-null defaulted
+columns; won-but-unconverted deals must stay on the pipeline board;
+approvals are polymorphic so the portal fetches content in a second query
+instead of a PostgREST embed; approval decisions flip content status via
+the admin client keyed off the approval's own subject_id (client roles
+deliberately cannot update content_items); DropdownMenuLabel requires a
+DropdownMenuGroup wrapper in Base UI.
 
 ## Section 27A — Lead Acquisition, Nurturing and Booking (foundation laid)
 

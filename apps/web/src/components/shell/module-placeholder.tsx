@@ -2,12 +2,12 @@ import { Construction } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const PHASE_LABELS: Record<number, string> = {
-  1: "Phase 1 — Core Agency Operations",
-  2: "Phase 2 — Commercial Operations",
-  3: "Phase 3 — Marketing Delivery",
-  4: "Phase 4 — Landing Page Factory",
-  5: "Phase 5 — AI and Connected Workspace",
-  6: "Phase 6 — Advanced Automation",
+  1: "Phase 1: Core Agency Operations",
+  2: "Phase 2: Commercial Operations",
+  3: "Phase 3: Marketing Delivery",
+  4: "Phase 4: Landing Page Factory",
+  5: "Phase 5: AI and Connected Workspace",
+  6: "Phase 6: Advanced Automation",
 };
 
 export function ModulePlaceholder({ title, phase, description }: { title: string; phase: number; description: string }) {

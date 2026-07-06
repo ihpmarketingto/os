@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requirePermission, writeAuditLog } from "@ihp/database";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireSession } from "@/lib/auth/session";
 import type { ContentStatus } from "@/lib/content/constants";
 
@@ -94,14 +95,17 @@ export async function updateContentStatus(contentId: string, clientId: string, s
 
 export async function decideApproval(
   approvalId: string,
-  contentId: string,
+  _contentId: string,
   decision: "approved" | "changes_requested",
   decisionNotes?: string,
 ): Promise<void> {
   const session = await requireSession();
   const supabase = await getSupabaseServerClient();
 
-  const { error: approvalError } = await supabase
+  // The approval update runs as the signed-in user, so RLS decides whether
+  // they may decide it (client portal members for their own client, or
+  // internal members with content.update). The returned row is the proof.
+  const { data: decided, error: approvalError } = await supabase
     .from("approvals")
     .update({
       status: decision,
@@ -109,14 +113,25 @@ export async function decideApproval(
       decided_at: new Date().toISOString(),
       decision_notes: decisionNotes ?? null,
     })
-    .eq("id", approvalId);
+    .eq("id", approvalId)
+    .eq("status", "pending")
+    .select("id, subject_type, subject_id, client_id")
+    .maybeSingle();
   if (approvalError) throw new Error(approvalError.message);
+  if (!decided) throw new Error("This approval was already decided or you do not have access to it.");
 
-  const { error: contentError } = await supabase
-    .from("content_items")
-    .update({ status: decision === "approved" ? "approved" : "revisions" })
-    .eq("id", contentId);
-  if (contentError) throw new Error(contentError.message);
+  // Content status flip runs with the admin client because client portal
+  // roles deliberately have no UPDATE policy on content_items. It is gated
+  // by the RLS-checked approval update above and keyed off the approval's
+  // own subject_id, never a caller-supplied id.
+  if (decided.subject_type === "content_item") {
+    const admin = getSupabaseAdminClient();
+    const { error: contentError } = await admin
+      .from("content_items")
+      .update({ status: decision === "approved" ? "approved" : "revisions" })
+      .eq("id", decided.subject_id);
+    if (contentError) throw new Error(contentError.message);
+  }
 
   await writeAuditLog(supabase, {
     organisationId: session.organisationId,
@@ -124,6 +139,7 @@ export async function decideApproval(
     action: "update",
     resource: "approvals",
     resourceId: approvalId,
+    clientId: decided.client_id,
     metadata: { decision },
   });
 

@@ -1,5 +1,5 @@
 /**
- * Phase 0 demo data. Idempotent — safe to re-run. Requires a real Supabase
+ * Phase 0 demo data. Idempotent - safe to re-run. Requires a real Supabase
  * project: point apps/web/.env.local at it and run migrations first
  * (`supabase db push` once you have the CLI, or apply supabase/migrations/*.sql
  * by hand via the SQL editor).
@@ -28,11 +28,11 @@ const DEMO_USERS = [
 ];
 
 const DEMO_CLIENTS = [
-  { name: "Lumen & Co", slug: "lumen-and-co", industry: "Ecommerce — Skincare", aiEnabled: true },
+  { name: "Lumen & Co", slug: "lumen-and-co", industry: "Ecommerce - Skincare", aiEnabled: true },
   { name: "Bloom Beauty Bar", slug: "bloom-beauty-bar", industry: "Beauty and Wellness", aiEnabled: false },
-  { name: "Voltway Electric", slug: "voltway-electric", industry: "Local Services — Electrical", aiEnabled: false },
-  { name: "Nightshade Live", slug: "nightshade-live", industry: "Events — Ticketed Performance", aiEnabled: false },
-  { name: "Cortex Labs", slug: "cortex-labs", industry: "SaaS — AI / Technology", aiEnabled: true },
+  { name: "Voltway Electric", slug: "voltway-electric", industry: "Local Services - Electrical", aiEnabled: false },
+  { name: "Nightshade Live", slug: "nightshade-live", industry: "Events - Ticketed Performance", aiEnabled: false },
+  { name: "Cortex Labs", slug: "cortex-labs", industry: "SaaS - AI / Technology", aiEnabled: true },
   { name: "Ascend Coaching Collective", slug: "ascend-coaching-collective", industry: "Coaching / Marketplace", aiEnabled: false },
 ];
 
@@ -49,7 +49,7 @@ async function upsertDemoUser(email: string, fullName: string): Promise<string> 
     return created.user.id;
   }
 
-  // Already exists — look it up instead of failing the whole seed run.
+  // Already exists - look it up instead of failing the whole seed run.
   const { data: list, error: listError } = await supabase.auth.admin.listUsers({ perPage: 200 });
   if (listError) throw listError;
   const existing = list.users.find((u) => u.email === email);
@@ -184,7 +184,7 @@ async function main() {
         task_type: "report_drafting",
         mode: "draft",
         prompt: "Draft the Q3 performance summary for Cortex Labs using their GA4 and paid media data.",
-        output: "Draft report generated (seed placeholder) — three key wins, two risks, one recommendation.",
+        output: "Draft report generated (seed placeholder) - three key wins, two risks, one recommendation.",
         status: "success",
         estimated_cost: 0.0421,
         approval_result: "not_required",
@@ -197,7 +197,7 @@ async function main() {
       ai_run_id: aiRun.id,
       document_type: "paid_media_report",
       document_id: null,
-      title: "Cortex Labs — August paid media export",
+      title: "Cortex Labs - August paid media export",
       excerpt: "ROAS 3.2x, CPL down 18% month-over-month.",
     });
     console.log("ai_runs: 1 sample draft run with a source citation");
@@ -208,7 +208,7 @@ async function main() {
       organisation_id: organisationId,
       key: "landing_page_factory",
       is_enabled: false,
-      description: "Preview access for the demo org — flip on once Phase 4 ships.",
+      description: "Preview access for the demo org - flip on once Phase 4 ships.",
       rollout: "off",
     },
     { onConflict: "organisation_id,key" },
@@ -258,6 +258,7 @@ async function main() {
           estimated_value: 2000,
           service_interest: ["seo"],
           owner_id: accountManagerId,
+          sms_consent: false,
         },
         {
           organisation_id: organisationId,
@@ -268,6 +269,7 @@ async function main() {
           score: 15,
           service_interest: [],
           owner_id: accountManagerId,
+          sms_consent: false,
         },
       ])
       .select("id, company_name");
@@ -278,7 +280,7 @@ async function main() {
       {
         organisation_id: organisationId,
         lead_id: leadRows.find((l) => l.company_name === "Sable & Stone Spa")!.id,
-        title: "Sable & Stone Spa — Social + Paid Retainer",
+        title: "Sable & Stone Spa - Social + Paid Retainer",
         stage: "proposal_sent",
         value: 4500,
         expected_close_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
@@ -287,7 +289,7 @@ async function main() {
       {
         organisation_id: organisationId,
         client_id: bloom.id,
-        title: "Bloom Beauty Bar — SEO upsell",
+        title: "Bloom Beauty Bar - SEO upsell",
         stage: "negotiation",
         value: 1800,
         owner_id: accountManagerId,
@@ -295,7 +297,7 @@ async function main() {
       {
         organisation_id: organisationId,
         client_id: voltway.id,
-        title: "Voltway Electric — Website rebuild",
+        title: "Voltway Electric - Website rebuild",
         stage: "discovery_completed",
         value: 9000,
         owner_id: accountManagerId,
@@ -401,9 +403,9 @@ async function main() {
     });
     if (noteError) throw noteError;
 
-    console.log(`${nightshade.name} and ${ascend.name} are seeded with no pipeline/delivery data yet — good for a from-scratch demo.`);
+    console.log(`${nightshade.name} and ${ascend.name} are seeded with no pipeline/delivery data yet - good for a from-scratch demo.`);
   } else {
-    console.log("Pipeline/delivery demo data already exists — skipping leads/deals/projects/tasks/content seed.");
+    console.log("Pipeline/delivery demo data already exists - skipping leads/deals/projects/tasks/content seed.");
   }
 
   console.log("\nSeed complete.");

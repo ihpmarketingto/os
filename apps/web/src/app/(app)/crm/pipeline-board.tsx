@@ -24,9 +24,18 @@ export function PipelineBoard({ deals }: { deals: DealCardData[] }) {
     dealsByStage.get(deal.stage)!.push(deal);
   }
 
+  // Closed/nurture columns only render when they hold deals still needing
+  // action (e.g. closed won awaiting client conversion).
+  const visibleStages: DealStage[] = [
+    ...OPEN_PIPELINE_STAGES,
+    ...Array.from(dealsByStage.keys()).filter(
+      (stage) => !OPEN_PIPELINE_STAGES.includes(stage) && (dealsByStage.get(stage)?.length ?? 0) > 0,
+    ),
+  ];
+
   return (
     <div className="flex gap-4 overflow-x-auto pb-4">
-      {OPEN_PIPELINE_STAGES.map((stage) => {
+      {visibleStages.map((stage) => {
         const stageLabel = DEAL_STAGES.find((s) => s.value === stage)!.label;
         const stageDeals = dealsByStage.get(stage) ?? [];
         return (

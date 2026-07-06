@@ -55,7 +55,7 @@ function ContentCard({ item }: { item: ContentCardData }) {
   return (
     <Card>
       <CardHeader className="p-3 pb-1">
-        <CardTitle className="text-sm font-medium">{item.hook ?? `${item.contentType ?? "Content"} — ${item.clientName}`}</CardTitle>
+        <CardTitle className="text-sm font-medium">{item.hook ?? `${item.contentType ?? "Content"} - ${item.clientName}`}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 p-3 pt-0">
         <p className="text-xs text-muted-foreground">{item.clientName}</p>

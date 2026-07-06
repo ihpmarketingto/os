@@ -14,7 +14,9 @@ export default async function CrmPage() {
       .from("deals")
       .select("id, title, stage, value, currency, owner:profiles(full_name)")
       .eq("organisation_id", session.organisationId)
-      .eq("status", "open")
+      // Open deals, plus won deals not yet converted to a client — those need
+      // to stay visible so the "Convert to client" action is reachable.
+      .or("status.eq.open,and(stage.eq.closed_won,client_id.is.null)")
       .order("created_at", { ascending: true }),
     supabase
       .from("leads")

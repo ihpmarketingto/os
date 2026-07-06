@@ -28,7 +28,7 @@ export default async function ClientPortalPage({
         <div>
           <h1 className="font-heading text-2xl">Client Portal</h1>
           <p className="text-sm text-muted-foreground">
-            Internal preview — pick a client to see exactly what their portal shows them.
+            Internal preview: pick a client to see exactly what their portal shows them.
           </p>
         </div>
         <Card>
@@ -64,18 +64,32 @@ export default async function ClientPortalPage({
     return <p className="text-sm text-muted-foreground">No client is associated with your account yet.</p>;
   }
 
-  const [{ data: client }, { data: projects }, { data: pendingApprovals }, { data: documents }, { data: meetings }] =
+  const [{ data: client }, { data: projects }, { data: rawApprovals }, { data: documents }, { data: meetings }] =
     await Promise.all([
       targetClientName ? Promise.resolve({ data: { name: targetClientName } }) : supabase.from("clients").select("name").eq("id", targetClientId).single(),
       supabase.from("projects").select("id, name, status").eq("client_id", targetClientId).eq("client_visible", true),
+      // approvals.subject_id is polymorphic (no FK), so the related content
+      // item is fetched in a second query rather than a PostgREST embed.
       supabase
         .from("approvals")
-        .select("id, status, requested_at, content:content_items(id, hook, content_type, caption)")
+        .select("id, status, requested_at, subject_type, subject_id")
         .eq("client_id", targetClientId)
         .eq("status", "pending"),
       supabase.from("documents").select("id, name").eq("client_id", targetClientId).eq("client_visible", true).is("deleted_at", null),
       supabase.from("meetings").select("id, title, scheduled_at").eq("client_id", targetClientId).eq("client_visible", true).order("scheduled_at", { ascending: false }).limit(5),
     ]);
+
+  const contentApprovalIds = (rawApprovals ?? [])
+    .filter((a) => a.subject_type === "content_item")
+    .map((a) => a.subject_id);
+  const { data: approvalContent } = contentApprovalIds.length
+    ? await supabase.from("content_items").select("id, hook, content_type, caption").in("id", contentApprovalIds)
+    : { data: [] as { id: string; hook: string | null; content_type: string | null; caption: string | null }[] };
+  const contentById = new Map((approvalContent ?? []).map((c) => [c.id, c]));
+
+  const pendingApprovals = (rawApprovals ?? [])
+    .map((a) => ({ ...a, content: contentById.get(a.subject_id) ?? null }))
+    .filter((a) => a.subject_type !== "content_item" || a.content !== null);
 
   return (
     <div className="space-y-6">
@@ -87,14 +101,14 @@ export default async function ClientPortalPage({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Awaiting your approval</CardTitle>
-          <CardDescription>Approve or request changes — internal team is notified either way.</CardDescription>
+          <CardDescription>Approve or request changes. The internal team is notified either way.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {!pendingApprovals || pendingApprovals.length === 0 ? (
+          {pendingApprovals.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nothing waiting on you right now.</p>
           ) : (
             pendingApprovals.map((a) => {
-              const content = a.content as unknown as { id: string; hook: string | null; content_type: string | null; caption: string | null } | null;
+              const content = a.content;
               if (!content) return null;
               return (
                 <div key={a.id} className="rounded-md border p-3">

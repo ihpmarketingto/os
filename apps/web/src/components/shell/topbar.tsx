@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -61,10 +62,12 @@ export function Topbar({
             }
           />
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>
-              <p className="truncate text-sm font-medium">{userLabel ?? email}</p>
-              <p className="truncate text-xs font-normal text-muted-foreground">{roleSlug.replace(/_/g, " ")}</p>
-            </DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>
+                <p className="truncate text-sm font-medium">{userLabel ?? email}</p>
+                <p className="truncate text-xs font-normal text-muted-foreground">{roleSlug.replace(/_/g, " ")}</p>
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem render={<a href="/settings/team">Settings</a>} />
             <DropdownMenuSeparator />

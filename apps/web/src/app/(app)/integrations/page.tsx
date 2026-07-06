@@ -100,7 +100,11 @@ export default async function IntegrationsPage({
               <CardContent>
                 {canOauth ? (
                   h.configured && !isConnected ? (
-                    <Button size="sm" render={<a href={`/api/integrations/${h.provider}/authorize`}>Connect</a>} />
+                    <Button
+                      size="sm"
+                      nativeButton={false}
+                      render={<a href={`/api/integrations/${h.provider}/authorize`}>Connect</a>}
+                    />
                   ) : (
                     <Button size="sm" disabled>
                       {isConnected ? "Connected" : "Set OAuth env vars to enable"}

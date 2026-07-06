@@ -38,6 +38,15 @@ export default async function HomePage() {
   const aiProviderStatus = getIntegrationStatus(serverEnv);
   const aiProviders = Object.keys(INTEGRATION_ENV_KEYS).filter((k) => ["openai", "gemini", "anthropic"].includes(k));
 
+  // An org-specific flag row overrides the global default with the same key.
+  const mergedFlags = new Map<string, { key: string; is_enabled: boolean }>();
+  for (const flag of flags ?? []) {
+    if (flag.organisation_id === session.organisationId || !mergedFlags.has(flag.key)) {
+      mergedFlags.set(flag.key, { key: flag.key, is_enabled: flag.is_enabled });
+    }
+  }
+  const flagList = Array.from(mergedFlags.values());
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -51,6 +60,7 @@ export default async function HomePage() {
               key={action.href + action.label}
               variant="outline"
               size="sm"
+              nativeButton={false}
               render={
                 <Link href={action.href}>
                   <Plus className="mr-1 size-3.5" />
@@ -140,9 +150,9 @@ export default async function HomePage() {
             <CardDescription>Turn a phase on for this organisation once it&rsquo;s ready to use.</CardDescription>
           </CardHeader>
           <CardContent>
-            {flags && flags.length > 0 ? (
+            {flagList.length > 0 ? (
               <ul className="space-y-2 text-sm">
-                {flags.map((flag) => (
+                {flagList.map((flag) => (
                   <li key={flag.key} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
                     <span>{flag.key}</span>
                     {flag.is_enabled ? (
