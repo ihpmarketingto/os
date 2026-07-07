@@ -593,6 +593,170 @@ async function main() {
     console.log("Commercial demo data already exists - skipping Phase 2 seed.");
   }
 
+  // --- Phase 3: marketing delivery demo data (guarded on campaigns) --------
+  const { count: existingCampaignsCount } = await supabase
+    .from("campaigns")
+    .select("id", { count: "exact", head: true })
+    .eq("organisation_id", organisationId);
+
+  if (!existingCampaignsCount) {
+    const nightshade = clientBySlug.get("nightshade-live")!;
+
+    const { data: campaign, error: campaignError } = await supabase
+      .from("campaigns")
+      .insert({
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        name: "Summer Glow launch",
+        objective: "60 consult bookings in June",
+        offer: "20% off first facial series",
+        audience: "Women 25-54 within 15km of downtown, skincare interest",
+        channels: ["meta_ads", "email"],
+        budget: 3000,
+        kpis: "CPL under $25, ROAS over 3",
+        start_date: "2026-06-01",
+        end_date: "2026-06-30",
+        status: "optimising" as const,
+        owner_id: accountManagerId,
+      })
+      .select("id")
+      .single();
+    if (campaignError) throw campaignError;
+
+    const metricDays = [
+      { d: "2026-06-01", spend: 95, imp: 21000, clk: 420, leads: 9, conv: 4, rev: 620 },
+      { d: "2026-06-02", spend: 102, imp: 22800, clk: 455, leads: 11, conv: 5, rev: 790 },
+      { d: "2026-06-03", spend: 98, imp: 20100, clk: 401, leads: 8, conv: 3, rev: 470 },
+      { d: "2026-06-04", spend: 110, imp: 24500, clk: 512, leads: 13, conv: 6, rev: 940 },
+      { d: "2026-06-05", spend: 105, imp: 23200, clk: 476, leads: 12, conv: 6, rev: 910 },
+      { d: "2026-06-06", spend: 120, imp: 26900, clk: 545, leads: 15, conv: 7, rev: 1105 },
+      { d: "2026-06-07", spend: 115, imp: 25400, clk: 522, leads: 14, conv: 6, rev: 950 },
+    ];
+    const { error: metricsError } = await supabase.from("campaign_metrics").insert(
+      metricDays.map((m) => ({
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        campaign_id: campaign.id,
+        channel: "meta_ads" as const,
+        metric_date: m.d,
+        spend: m.spend,
+        impressions: m.imp,
+        clicks: m.clk,
+        leads: m.leads,
+        conversions: m.conv,
+        revenue: m.rev,
+        source: "csv_import" as const,
+        created_by: accountManagerId,
+      })),
+    );
+    if (metricsError) throw metricsError;
+
+    const { error: reportError } = await supabase.from("reports").insert([
+      {
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        title: "June performance report",
+        period_start: "2026-06-01",
+        period_end: "2026-06-30",
+        executive_summary:
+          "Paid social delivered 82 leads at a $9.09 CPL, well under the $25 target, and the Summer Glow offer converted at 4.9%.",
+        key_wins: "CPL 64% below target; UGC video A outperformed static creative 2.3 to 1.",
+        risks: "Creative fatigue expected by mid-July; new UGC batch needed before spend scales.",
+        next_month_plan: "Scale budget 20%, launch two new UGC creators, add retargeting audience.",
+        status: "published" as const,
+        created_by: accountManagerId,
+        published_at: "2026-07-02T16:00:00Z",
+      },
+      {
+        organisation_id: organisationId,
+        client_id: cortex.id,
+        title: "June performance report",
+        period_start: "2026-06-01",
+        period_end: "2026-06-30",
+        executive_summary: "Draft pending final GA4 numbers.",
+        status: "draft" as const,
+        created_by: specialistId,
+      },
+    ]);
+    if (reportError) throw reportError;
+
+    const { error: experimentError } = await supabase.from("experiments").insert({
+      organisation_id: organisationId,
+      client_id: lumen.id,
+      name: "Booking CTA above the fold",
+      hypothesis: "If the booking CTA moves above the fold on mobile, consult bookings will rise because 68% of traffic is mobile and the current CTA sits below three scroll depths.",
+      page_url: "/offers/summer-glow",
+      variant_description: "Sticky booking bar with price anchor",
+      success_metric: "Booking conversion rate",
+      start_date: "2026-06-20",
+      status: "running" as const,
+      created_by: specialistId,
+    });
+    if (experimentError) throw experimentError;
+
+    const { error: influencerError } = await supabase.from("influencers").insert([
+      {
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        name: "Maya Chen",
+        handle: "@mayaglows",
+        platform: "Instagram",
+        followers: 48000,
+        email: "maya@example.com",
+        status: "negotiating" as const,
+        notes: "Strong local beauty audience; asked for product plus fee.",
+      },
+      {
+        organisation_id: organisationId,
+        client_id: null,
+        name: "Jordan Fit",
+        handle: "@jordanfitto",
+        platform: "TikTok",
+        followers: 112000,
+        email: "jordan@example.com",
+        status: "prospect" as const,
+      },
+    ]);
+    if (influencerError) throw influencerError;
+
+    const { error: mediaError } = await supabase.from("media_contacts").insert([
+      {
+        organisation_id: organisationId,
+        name: "Priya Raman",
+        outlet: "CTV Toronto",
+        beat: "Local events and community",
+        email: "priya.raman@example.com",
+      },
+      {
+        organisation_id: organisationId,
+        name: "Dave Kowalski",
+        outlet: "BlogTO",
+        beat: "Things to do, entertainment",
+        email: "dave.k@example.com",
+      },
+    ]);
+    if (mediaError) throw mediaError;
+
+    const { error: eventError } = await supabase.from("events").insert({
+      organisation_id: organisationId,
+      client_id: nightshade.id,
+      name: "Nightshade Live: Autumn Run",
+      venue: "FirstOntario Performing Arts Centre",
+      starts_at: "2026-10-16T19:30:00-04:00",
+      ends_at: "2026-10-18T22:00:00-04:00",
+      ticket_link: "https://example.com/tickets",
+      status: "on_sale" as const,
+      target_attendance: 2200,
+      tickets_sold: 840,
+      ticket_revenue: 52400,
+    });
+    if (eventError) throw eventError;
+
+    console.log("phase 3: campaign, metrics, reports, experiment, creators, media contacts, event seeded");
+  } else {
+    console.log("Marketing delivery demo data already exists - skipping Phase 3 seed.");
+  }
+
   console.log("\nSeed complete.");
   console.log(`Sign in at http://localhost:3000/login with any demo user and password "${DEMO_PASSWORD}":`);
   for (const user of DEMO_USERS) {

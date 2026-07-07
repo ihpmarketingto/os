@@ -89,6 +89,17 @@ export default async function ClientPortalPage({
         .limit(10),
     ]);
 
+  // Published reports only — RLS enforces this for portal roles; the filter
+  // keeps the internal preview honest too.
+  const { data: publishedReports } = await supabase
+    .from("reports")
+    .select("id, title, period_start, period_end, executive_summary, key_wins, next_month_plan, published_at")
+    .eq("client_id", targetClientId)
+    .eq("status", "published")
+    .is("deleted_at", null)
+    .order("period_end", { ascending: false })
+    .limit(6);
+
   const contentApprovalIds = (rawApprovals ?? [])
     .filter((a) => a.subject_type === "content_item")
     .map((a) => a.subject_id);
@@ -130,6 +141,42 @@ export default async function ClientPortalPage({
                 </div>
               );
             })
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Reports</CardTitle>
+          <CardDescription>Performance reports published by your account team.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!publishedReports || publishedReports.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No reports published yet.</p>
+          ) : (
+            publishedReports.map((r) => (
+              <div key={r.id} className="rounded-md border p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">{r.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {r.period_start} to {r.period_end}
+                  </p>
+                </div>
+                {r.executive_summary ? <p className="mt-1 text-sm text-muted-foreground">{r.executive_summary}</p> : null}
+                {r.key_wins ? (
+                  <p className="mt-2 text-sm">
+                    <span className="font-medium">Key wins: </span>
+                    {r.key_wins}
+                  </p>
+                ) : null}
+                {r.next_month_plan ? (
+                  <p className="mt-1 text-sm">
+                    <span className="font-medium">Next month: </span>
+                    {r.next_month_plan}
+                  </p>
+                ) : null}
+              </div>
+            ))
           )}
         </CardContent>
       </Card>

@@ -1,11 +1,12 @@
-import { ModulePlaceholder } from "@/components/shell/module-placeholder";
+import { ChannelDashboard } from "@/components/marketing/channel-dashboard";
 
-export default function Page() {
+export default function EmailLifecyclePage() {
   return (
-    <ModulePlaceholder
+    <ChannelDashboard
       title="Email and Lifecycle"
-      phase={3}
-      description="Lifecycle flows, segmentation and revenue attribution land in Phase 3."
+      description="Campaign and flow performance from ESP exports. Klaviyo API sync activates with credentials."
+      channels={["email"]}
+      defaultChannel="email"
     />
   );
 }

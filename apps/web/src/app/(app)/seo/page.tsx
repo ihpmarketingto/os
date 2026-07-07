@@ -1,11 +1,12 @@
-import { ModulePlaceholder } from "@/components/shell/module-placeholder";
+import { ChannelDashboard } from "@/components/marketing/channel-dashboard";
 
-export default function Page() {
+export default function SeoPage() {
   return (
-    <ModulePlaceholder
+    <ChannelDashboard
       title="SEO"
-      phase={3}
-      description="Keyword tracking, audits and local SEO workflows land in Phase 3."
+      description="Organic performance from Search Console and GA4 exports. Spend stays zero for organic rows."
+      channels={["seo"]}
+      defaultChannel="seo"
     />
   );
 }

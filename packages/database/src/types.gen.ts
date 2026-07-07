@@ -893,6 +893,247 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["member_rates"]["Row"]>;
         Relationships: [];
       };
+      campaigns: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          name: string;
+          objective: string | null;
+          offer: string | null;
+          audience: string | null;
+          channels: string[];
+          budget: number | null;
+          kpis: string | null;
+          start_date: string | null;
+          end_date: string | null;
+          status:
+            | "planning"
+            | "awaiting_approval"
+            | "ready_to_launch"
+            | "live"
+            | "optimising"
+            | "paused"
+            | "complete"
+            | "archived";
+          owner_id: string | null;
+          results: string | null;
+          learnings: string | null;
+          client_visible: boolean;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["campaigns"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["campaigns"]["Row"]>;
+        Relationships: [];
+      };
+      campaign_metrics: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          campaign_id: string | null;
+          channel: "meta_ads" | "google_ads" | "seo" | "email" | "social" | "other";
+          metric_date: string;
+          spend: number;
+          impressions: number;
+          clicks: number;
+          leads: number;
+          conversions: number;
+          revenue: number;
+          extras: Json;
+          source: "csv_import" | "manual" | "api";
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["campaign_metrics"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          channel: Database["public"]["Tables"]["campaign_metrics"]["Row"]["channel"];
+          metric_date: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["campaign_metrics"]["Row"]>;
+        Relationships: [];
+      };
+      reports: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          title: string;
+          period_start: string;
+          period_end: string;
+          executive_summary: string | null;
+          key_wins: string | null;
+          risks: string | null;
+          next_month_plan: string | null;
+          status: "draft" | "internal_review" | "client_review" | "published" | "archived";
+          created_by: string | null;
+          published_at: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["reports"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          title: string;
+          period_start: string;
+          period_end: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["reports"]["Row"]>;
+        Relationships: [];
+      };
+      experiments: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          name: string;
+          hypothesis: string;
+          page_url: string | null;
+          variant_description: string | null;
+          success_metric: string | null;
+          start_date: string | null;
+          end_date: string | null;
+          status: "planned" | "running" | "complete" | "abandoned";
+          result: string | null;
+          statistical_confidence: string | null;
+          decision: "ship" | "revert" | "iterate" | null;
+          learnings: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["experiments"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          name: string;
+          hypothesis: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["experiments"]["Row"]>;
+        Relationships: [];
+      };
+      influencers: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          name: string;
+          handle: string | null;
+          platform: string | null;
+          followers: number | null;
+          email: string | null;
+          status: "prospect" | "contacted" | "negotiating" | "active" | "past";
+          compensation: string | null;
+          usage_rights: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["influencers"]["Row"]> & {
+          organisation_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["influencers"]["Row"]>;
+        Relationships: [];
+      };
+      media_contacts: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          name: string;
+          outlet: string | null;
+          beat: string | null;
+          email: string | null;
+          phone: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["media_contacts"]["Row"]> & {
+          organisation_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["media_contacts"]["Row"]>;
+        Relationships: [];
+      };
+      outreach: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          contact_type: "influencer" | "media";
+          influencer_id: string | null;
+          media_contact_id: string | null;
+          subject: string;
+          status: "drafted" | "sent" | "responded" | "declined" | "confirmed";
+          sent_at: string | null;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["outreach"]["Row"]> & {
+          organisation_id: string;
+          contact_type: Database["public"]["Tables"]["outreach"]["Row"]["contact_type"];
+          subject: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["outreach"]["Row"]>;
+        Relationships: [];
+      };
+      events: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          name: string;
+          venue: string | null;
+          starts_at: string | null;
+          ends_at: string | null;
+          ticket_link: string | null;
+          status: "planning" | "on_sale" | "live" | "complete" | "cancelled";
+          target_attendance: number | null;
+          tickets_sold: number;
+          ticket_revenue: number;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["events"]["Row"]> & {
+          organisation_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["events"]["Row"]>;
+        Relationships: [];
+      };
+      event_attendees: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          event_id: string;
+          name: string;
+          email: string | null;
+          ticket_type: string | null;
+          checked_in: boolean;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["event_attendees"]["Row"]> & {
+          organisation_id: string;
+          event_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_attendees"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

@@ -1,11 +1,12 @@
-import { ModulePlaceholder } from "@/components/shell/module-placeholder";
+import { ChannelDashboard } from "@/components/marketing/channel-dashboard";
 
-export default function Page() {
+export default function PaidMediaPage() {
   return (
-    <ModulePlaceholder
+    <ChannelDashboard
       title="Paid Media"
-      phase={3}
-      description="Meta and Google Ads reporting, pacing and creative testing lands in Phase 3."
+      description="Meta and Google Ads performance from imported data. API sync activates with platform credentials."
+      channels={["meta_ads", "google_ads"]}
+      defaultChannel="meta_ads"
     />
   );
 }

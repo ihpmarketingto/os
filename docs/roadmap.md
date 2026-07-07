@@ -190,19 +190,44 @@ export, receipt upload against expenses, Stripe/Square adapters for real
 payment collection and deposit reconciliation (27A), churn and utilisation
 reporting.
 
-## Phase 3 — Marketing Delivery (not started)
+## Phase 3 — Marketing Delivery (core complete, live-verified 2026-07-06)
 
-Campaigns, paid media/SEO/website/email/PR/events reporting, the reporting
-engine. Needs `campaigns`, `campaign_metrics`, `reports`,
-`report_snapshots`, `influencers`, `media_contacts`, `outreach`, `events`,
-`event_attendees`. Meta Ads, Google Ads, Klaviyo adapters go live here.
-27A additions: Meta funnel and testing framework (objective, offer,
-audience, budget, creative testing plan, pixel/CAPI QA, decision rules,
-launch checklist), attribution reporting (CPL, cost per qualified lead,
-cost per booking/attended/deposit/sale, revenue by source, ROAS,
-lead-to-booking, booking-to-show, show-to-sale, response-time
-performance), and the configurable testing-budget guidance (suggested CAD
-$50/day default, never presented as a performance guarantee).
+**Built and verified against the live project:**
+
+- Schema (migration `0013`): `campaigns`, `campaign_metrics`
+  (channel-agnostic day-rows), `reports`, `experiments`, `influencers`,
+  `media_contacts`, `outreach`, `events`, `event_attendees` — all
+  RLS-secured (campaigns/reports permissions; portal members read
+  published reports and client-visible campaigns only).
+- Campaigns module: full lifecycle statuses from the spec (Planning
+  through Archived), objective/offer/audience/channels/budget/KPIs.
+- Channel dashboards: one shared metrics engine behind Paid Media
+  (Meta + Google Ads), SEO, and Email pages — spend, revenue, ROAS,
+  leads, CPL, CPA, CTR, CPM, conversion rate, overall and per client,
+  computed by pure tested functions (null over fake zeros when a
+  denominator is empty). Data arrives by validated CSV import
+  (documented column format, per-line error reporting) until the
+  Meta/Google/Klaviyo API adapters activate with credentials.
+- Website and CRO: experiment tracker enforcing hypothesis and success
+  metric up front, with start/conclude flow capturing result,
+  statistical confidence, ship/revert/iterate decision, and learnings.
+- PR and influencers: creator roster with outreach statuses and media
+  contact list (pitch tracking builds on the `outreach` table next).
+- Events: ticketed-event tracking with target attendance, running ticket
+  sales and revenue.
+- Reports engine: draft → internal review → client review → published →
+  archived, with transitions validated server-side, publishing gated on
+  the reports approve permission and logged as an external action, and
+  published reports appearing in the client portal (verified as the
+  demo client admin, who sees the published report and not the draft).
+
+**Still open in Phase 3 scope:** report PDF export and shareable secure
+links, AI-generated report commentary (Phase 5 dependency), keyword-level
+SEO tracking (rank tracking, clustering, GBP workflow), campaign detail
+page linking content/tasks/landing pages, paid-media anomaly detection,
+pitch/outreach UI on top of the outreach table, run-of-show and
+sponsor/speaker tracking for events, and the 27A Meta funnel testing
+framework UI with pixel/CAPI QA checklists.
 
 ## Phase 4 — Landing Page Factory (not started)
 
