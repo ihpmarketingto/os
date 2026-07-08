@@ -103,14 +103,32 @@ export default async function ClientPortalPage({
   const contentApprovalIds = (rawApprovals ?? [])
     .filter((a) => a.subject_type === "content_item")
     .map((a) => a.subject_id);
-  const { data: approvalContent } = contentApprovalIds.length
-    ? await supabase.from("content_items").select("id, hook, content_type, caption").in("id", contentApprovalIds)
-    : { data: [] as { id: string; hook: string | null; content_type: string | null; caption: string | null }[] };
+  const pageApprovalIds = (rawApprovals ?? [])
+    .filter((a) => a.subject_type === "landing_page")
+    .map((a) => a.subject_id);
+
+  const [{ data: approvalContent }, { data: approvalPages }] = await Promise.all([
+    contentApprovalIds.length
+      ? supabase.from("content_items").select("id, hook, content_type, caption").in("id", contentApprovalIds)
+      : Promise.resolve({ data: [] as { id: string; hook: string | null; content_type: string | null; caption: string | null }[] }),
+    pageApprovalIds.length
+      ? supabase.from("landing_page_projects").select("id, name, preview_url").in("id", pageApprovalIds)
+      : Promise.resolve({ data: [] as { id: string; name: string; preview_url: string | null }[] }),
+  ]);
   const contentById = new Map((approvalContent ?? []).map((c) => [c.id, c]));
+  const pageById = new Map((approvalPages ?? []).map((p) => [p.id, p]));
 
   const pendingApprovals = (rawApprovals ?? [])
-    .map((a) => ({ ...a, content: contentById.get(a.subject_id) ?? null }))
-    .filter((a) => a.subject_type !== "content_item" || a.content !== null);
+    .map((a) => ({
+      ...a,
+      content: contentById.get(a.subject_id) ?? null,
+      page: pageById.get(a.subject_id) ?? null,
+    }))
+    .filter(
+      (a) =>
+        (a.subject_type === "content_item" && a.content !== null) ||
+        (a.subject_type === "landing_page" && a.page !== null),
+    );
 
   return (
     <div className="space-y-6">
@@ -129,6 +147,29 @@ export default async function ClientPortalPage({
             <p className="text-sm text-muted-foreground">Nothing waiting on you right now.</p>
           ) : (
             pendingApprovals.map((a) => {
+              if (a.subject_type === "landing_page" && a.page) {
+                return (
+                  <div key={a.id} className="rounded-md border p-3">
+                    <p className="text-sm font-medium">Landing page: {a.page.name}</p>
+                    {a.page.preview_url ? (
+                      <a
+                        href={a.page.preview_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-block text-sm text-brand hover:underline"
+                      >
+                        Open the preview
+                      </a>
+                    ) : null}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Approving allows your team to publish this page live.
+                    </p>
+                    <div className="mt-2">
+                      <ApprovalActions approvalId={a.id} contentId={a.page.id} />
+                    </div>
+                  </div>
+                );
+              }
               const content = a.content;
               if (!content) return null;
               return (

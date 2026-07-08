@@ -229,13 +229,44 @@ pitch/outreach UI on top of the outreach table, run-of-show and
 sponsor/speaker tracking for events, and the 27A Meta funnel testing
 framework UI with pixel/CAPI QA checklists.
 
-## Phase 4 — Landing Page Factory (not started)
+## Phase 4 — Landing Page Factory (governance core complete, live-verified 2026-07-06)
 
-GitHub/Replit ingestion, Build Library, component library, brief builder,
-page generation, preview deployment, QA, approvals. Needs
-`landing_page_projects`, `landing_page_briefs`, `build_library_projects`,
-`reusable_components`, `page_versions`, `qa_runs`, `deployments`,
-`experiments`. Vercel/Netlify/Cloudflare adapters go live here.
+**Built and verified against the live project:**
+
+- Schema (migrations `0014`-`0015`): `build_library_projects`,
+  `reusable_components`, `landing_page_briefs`, `landing_page_projects`,
+  `qa_runs`, `deployments`, all RLS-secured on the landing_page_factory
+  permission. Portal members can read a page's name and preview link only
+  while it awaits (or after) their approval — internal states stay
+  invisible to clients.
+- Build Library: past GitHub/Replit/manual work registered as governed
+  reference material with performance data and learnings. Nothing is
+  reusable until explicitly approved (approve permission); restricted
+  projects cannot be selected as references, enforced server-side.
+- Brief builder: the spec's structured brief (offer, conversion action,
+  CTAs, audience, price, proof points, objections, required and forbidden
+  claims, required disclaimer, tracking requirements, launch date).
+  Page projects can only be created from an approved brief.
+- Page workflow: planning → generating → preview → qa →
+  internal_approval → client_approval → approved_to_publish → published,
+  transitions validated server-side. Requesting client approval requires
+  a preview URL and creates a portal approval; the client's decision (not
+  any internal action) is what moves a page to approved_to_publish.
+- QA: the spec's 27-item pre-publish checklist recorded per run with
+  pass/warning/fail per item; any fail fails the run.
+- Publish gate (pure, 10 unit tests): production publishing requires
+  approved_to_publish status AND a latest QA run that did not fail AND a
+  recorded client approval AND the approve permission — verified live end
+  to end (Dana approved from her portal via the preview link, the owner
+  published, the production deployment and external_action audit entry
+  were recorded).
+
+**Still open in Phase 4 scope:** actual page code generation (Phase 5 — the
+AI layer drives it through these gates), GitHub OAuth repo sync and Replit
+ZIP ingestion with secret scanning, automated component discovery into
+`reusable_components`, `page_versions` tracking, Vercel/Netlify/Cloudflare
+deployment adapters (deployments are recorded manually today), and the
+performance learning loop back into the Build Library.
 
 ## Phase 5 — AI and Connected Workspace (not started)
 

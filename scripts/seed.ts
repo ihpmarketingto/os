@@ -757,6 +757,133 @@ async function main() {
     console.log("Marketing delivery demo data already exists - skipping Phase 3 seed.");
   }
 
+  // --- Phase 4: landing page factory demo data (guarded) -------------------
+  const { count: existingBuildProjects } = await supabase
+    .from("build_library_projects")
+    .select("id", { count: "exact", head: true })
+    .eq("organisation_id", organisationId);
+
+  if (!existingBuildProjects) {
+    const nightshade = clientBySlug.get("nightshade-live")!;
+
+    const { error: blpError } = await supabase.from("build_library_projects").insert({
+      organisation_id: organisationId,
+      client_id: nightshade.id,
+      project_name: "Ticketed performance landing page (2025)",
+      repository_url: "https://github.com/ihp-marketing/example-ticketing-page",
+      deployment_url: "https://example.com/past-show",
+      source_provider: "github" as const,
+      technology_stack: ["nextjs", "tailwind"],
+      page_type: "Event ticketing page",
+      offer_type: "Ticket sales",
+      funnel_type: "Paid social to ticket checkout",
+      industry: "Events - Ticketed Performance",
+      conversion_goal: "Ticket purchases",
+      traffic_source: "Meta Ads",
+      form_system: "Ticketing platform embed",
+      conversion_rate: 0.041,
+      learnings: "Countdown block and segmented audience by geography drove the strongest CTR.",
+      status: "approved_for_reuse" as const,
+      reuse_permitted: true,
+      asset_rights: "IHP-owned structure; client assets excluded",
+    });
+    if (blpError) throw blpError;
+
+    const { data: brief, error: briefError } = await supabase
+      .from("landing_page_briefs")
+      .insert({
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        title: "Summer Glow offer page",
+        offer: "20% off first facial series, June only",
+        product_service: "Facial series (3 sessions)",
+        audience: "Women 25-54 within 15km, skincare interest",
+        goal: "Consult bookings from paid social",
+        conversion_action: "Booked consult",
+        main_cta: "Book my consult",
+        secondary_cta: "See treatment details",
+        traffic_source: "Meta Ads",
+        price: "From $89 per session",
+        promotion: "20% off first series",
+        booking_link: "https://example.com/book",
+        proof_points: "4.9 average rating from 320 reviews; dermatologist-developed protocol",
+        objections: "Price sensitivity; time commitment; sensitive skin concerns",
+        required_claims: "Results vary by individual",
+        forbidden_claims: "No medical or cure claims; no before-and-after images without signed release",
+        required_disclaimer: "Individual results may vary. Consultation required before treatment.",
+        required_tracking: "GA4, Meta Pixel, UTM capture, CRM lead routing",
+        launch_date: "2026-07-15",
+        status: "approved" as const,
+        approved_at: new Date().toISOString(),
+        approval_owner_id: accountManagerId,
+        created_by: accountManagerId,
+      })
+      .select("id")
+      .single();
+    if (briefError) throw briefError;
+
+    const { data: page, error: pageError } = await supabase
+      .from("landing_page_projects")
+      .insert({
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        brief_id: brief.id,
+        name: "Summer Glow landing page",
+        generation_mode: "build_from_strategy" as const,
+        repository_url: "https://github.com/ihp-marketing/lumen-summer-glow",
+        branch: "main",
+        preview_url: "https://preview.example.com/lumen-summer-glow",
+        status: "client_approval" as const,
+        created_by: accountManagerId,
+      })
+      .select("id")
+      .single();
+    if (pageError) throw pageError;
+
+    const qaChecklist = [
+      "Desktop layout", "Mobile layout", "Tablet layout", "CTA links", "Form validation",
+      "Form submission", "Booking links", "Ticket links", "Checkout links", "Thank-you workflow",
+      "CRM routing", "Email notifications", "GA4 events", "Meta events", "Google Ads conversions",
+      "UTM capture", "SEO metadata", "Open Graph image", "Page speed", "Accessibility",
+      "Legal disclaimers", "Brand consistency", "Canadian spelling", "Broken links",
+      "Missing images", "Cookie consent", "Error states",
+    ];
+    const { error: qaError } = await supabase.from("qa_runs").insert({
+      organisation_id: organisationId,
+      landing_page_project_id: page.id,
+      run_by: specialistId,
+      overall: "pass" as const,
+      items: qaChecklist.map((check) => ({ check, result: "pass" })),
+      notes: "All checks pass on preview build.",
+    });
+    if (qaError) throw qaError;
+
+    const { error: deployError } = await supabase.from("deployments").insert({
+      organisation_id: organisationId,
+      landing_page_project_id: page.id,
+      environment: "preview" as const,
+      provider: "manual" as const,
+      url: "https://preview.example.com/lumen-summer-glow",
+      status: "succeeded" as const,
+      triggered_by: specialistId,
+    });
+    if (deployError) throw deployError;
+
+    const { error: lpApprovalError } = await supabase.from("approvals").insert({
+      organisation_id: organisationId,
+      client_id: lumen.id,
+      subject_type: "landing_page" as const,
+      subject_id: page.id,
+      requested_by: accountManagerId,
+      status: "pending" as const,
+    });
+    if (lpApprovalError) throw lpApprovalError;
+
+    console.log("phase 4: build library reference, approved brief, page in client approval with passing QA seeded");
+  } else {
+    console.log("Landing page factory demo data already exists - skipping Phase 4 seed.");
+  }
+
   console.log("\nSeed complete.");
   console.log(`Sign in at http://localhost:3000/login with any demo user and password "${DEMO_PASSWORD}":`);
   for (const user of DEMO_USERS) {

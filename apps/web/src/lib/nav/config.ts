@@ -50,7 +50,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Events", href: "/events", icon: CalendarDays, phase: 0 },
   { label: "Reports", href: "/reports", icon: FileBarChart, phase: 0 },
   { label: "Finance", href: "/finance", icon: Wallet, phase: 0, flagKey: "finance" },
-  { label: "Landing Page Factory", href: "/landing-page-factory", icon: Rocket, phase: 4, flagKey: "landing_page_factory" },
+  { label: "Landing Page Factory", href: "/landing-page-factory", icon: Rocket, phase: 0, flagKey: "landing_page_factory" },
   { label: "Documents and Assets", href: "/documents", icon: FileText, phase: 0 },
   { label: "Automations", href: "/automations", icon: Workflow, phase: 6, flagKey: "automations" },
   { label: "AI Intelligence", href: "/ai-intelligence", icon: Sparkles, phase: 5, flagKey: "ai_intelligence" },

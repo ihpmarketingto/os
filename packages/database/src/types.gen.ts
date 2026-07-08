@@ -609,7 +609,7 @@ export interface Database {
           id: string;
           organisation_id: string;
           client_id: string;
-          subject_type: "content_item" | "document" | "report";
+          subject_type: "content_item" | "document" | "report" | "landing_page";
           subject_id: string;
           requested_by: string | null;
           status: "pending" | "approved" | "changes_requested";
@@ -1132,6 +1132,231 @@ export interface Database {
           name: string;
         };
         Update: Partial<Database["public"]["Tables"]["event_attendees"]["Row"]>;
+        Relationships: [];
+      };
+      build_library_projects: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          project_name: string;
+          repository_url: string | null;
+          branch: string | null;
+          deployment_url: string | null;
+          replit_url: string | null;
+          source_provider: "github" | "replit" | "manual";
+          technology_stack: string[];
+          page_type: string | null;
+          offer_type: string | null;
+          funnel_type: string | null;
+          industry: string | null;
+          target_audience: string | null;
+          conversion_goal: string | null;
+          traffic_source: string | null;
+          screenshot_document_id: string | null;
+          design_style_tags: string[];
+          components_detected: string[];
+          tracking_detected: string[];
+          form_system: string | null;
+          conversion_rate: number | null;
+          leads: number | null;
+          revenue: number | null;
+          roas: number | null;
+          learnings: string | null;
+          status: "imported" | "reviewed" | "approved_for_reuse" | "restricted";
+          reuse_permitted: boolean;
+          client_restrictions: string | null;
+          asset_rights: string | null;
+          source_ownership: string;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["build_library_projects"]["Row"]> & {
+          organisation_id: string;
+          project_name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["build_library_projects"]["Row"]>;
+        Relationships: [];
+      };
+      reusable_components: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          source_project_id: string | null;
+          name: string;
+          category:
+            | "hero"
+            | "navigation"
+            | "offer"
+            | "pricing"
+            | "reviews"
+            | "testimonials"
+            | "before_after"
+            | "product"
+            | "booking"
+            | "event"
+            | "speaker"
+            | "faq"
+            | "form"
+            | "trust_bar"
+            | "cta"
+            | "countdown"
+            | "location"
+            | "video"
+            | "footer";
+          code_reference: string | null;
+          props_notes: string | null;
+          dependencies: string | null;
+          editable_fields: string | null;
+          preview_document_id: string | null;
+          accessibility_notes: string | null;
+          analytics_events: string | null;
+          conversion_purpose: string | null;
+          client_restrictions: string | null;
+          approval_status: "pending_review" | "approved" | "rejected";
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["reusable_components"]["Row"]> & {
+          organisation_id: string;
+          name: string;
+          category: Database["public"]["Tables"]["reusable_components"]["Row"]["category"];
+        };
+        Update: Partial<Database["public"]["Tables"]["reusable_components"]["Row"]>;
+        Relationships: [];
+      };
+      landing_page_briefs: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          campaign_id: string | null;
+          title: string;
+          offer: string;
+          product_service: string | null;
+          audience: string | null;
+          goal: string | null;
+          conversion_action: string;
+          main_cta: string;
+          secondary_cta: string | null;
+          traffic_source: string | null;
+          price: string | null;
+          promotion: string | null;
+          deadline: string | null;
+          location: string | null;
+          booking_link: string | null;
+          product_link: string | null;
+          ticket_link: string | null;
+          testimonials: string | null;
+          objections: string | null;
+          proof_points: string | null;
+          differentiators: string | null;
+          required_claims: string | null;
+          forbidden_claims: string | null;
+          required_disclaimer: string | null;
+          brand_direction: string | null;
+          reference_projects: string | null;
+          required_tracking: string | null;
+          required_integrations: string | null;
+          launch_date: string | null;
+          stakeholders: string | null;
+          approval_owner_id: string | null;
+          status: "draft" | "approved";
+          approved_at: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["landing_page_briefs"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          title: string;
+          offer: string;
+          conversion_action: string;
+          main_cta: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["landing_page_briefs"]["Row"]>;
+        Relationships: [];
+      };
+      landing_page_projects: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          brief_id: string;
+          name: string;
+          generation_mode: "clone_and_adapt" | "build_from_components" | "build_from_strategy" | "improve_existing";
+          reference_build_project_id: string | null;
+          repository_url: string | null;
+          branch: string | null;
+          preview_url: string | null;
+          production_url: string | null;
+          status:
+            | "planning"
+            | "generating"
+            | "preview"
+            | "qa"
+            | "internal_approval"
+            | "client_approval"
+            | "approved_to_publish"
+            | "published"
+            | "archived";
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["landing_page_projects"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          brief_id: string;
+          name: string;
+          generation_mode: Database["public"]["Tables"]["landing_page_projects"]["Row"]["generation_mode"];
+        };
+        Update: Partial<Database["public"]["Tables"]["landing_page_projects"]["Row"]>;
+        Relationships: [];
+      };
+      qa_runs: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          landing_page_project_id: string;
+          run_by: string | null;
+          overall: "pass" | "warning" | "fail";
+          items: Json;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["qa_runs"]["Row"]> & {
+          organisation_id: string;
+          landing_page_project_id: string;
+          overall: Database["public"]["Tables"]["qa_runs"]["Row"]["overall"];
+        };
+        Update: Partial<Database["public"]["Tables"]["qa_runs"]["Row"]>;
+        Relationships: [];
+      };
+      deployments: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          landing_page_project_id: string;
+          environment: "preview" | "production";
+          provider: "vercel" | "netlify" | "cloudflare_pages" | "replit" | "manual";
+          url: string | null;
+          status: "pending" | "succeeded" | "failed";
+          triggered_by: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["deployments"]["Row"]> & {
+          organisation_id: string;
+          landing_page_project_id: string;
+          environment: Database["public"]["Tables"]["deployments"]["Row"]["environment"];
+        };
+        Update: Partial<Database["public"]["Tables"]["deployments"]["Row"]>;
         Relationships: [];
       };
     };

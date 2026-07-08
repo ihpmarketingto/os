@@ -120,17 +120,24 @@ export async function decideApproval(
   if (approvalError) throw new Error(approvalError.message);
   if (!decided) throw new Error("This approval was already decided or you do not have access to it.");
 
-  // Content status flip runs with the admin client because client portal
-  // roles deliberately have no UPDATE policy on content_items. It is gated
-  // by the RLS-checked approval update above and keyed off the approval's
-  // own subject_id, never a caller-supplied id.
+  // Subject status flips run with the admin client because client portal
+  // roles deliberately have no UPDATE policy on the subject tables. They are
+  // gated by the RLS-checked approval update above and keyed off the
+  // approval's own subject_id, never a caller-supplied id.
+  const admin = getSupabaseAdminClient();
   if (decided.subject_type === "content_item") {
-    const admin = getSupabaseAdminClient();
     const { error: contentError } = await admin
       .from("content_items")
       .update({ status: decision === "approved" ? "approved" : "revisions" })
       .eq("id", decided.subject_id);
     if (contentError) throw new Error(contentError.message);
+  } else if (decided.subject_type === "landing_page") {
+    const { error: pageError } = await admin
+      .from("landing_page_projects")
+      .update({ status: decision === "approved" ? "approved_to_publish" : "preview" })
+      .eq("id", decided.subject_id)
+      .eq("status", "client_approval");
+    if (pageError) throw new Error(pageError.message);
   }
 
   await writeAuditLog(supabase, {
@@ -145,4 +152,5 @@ export async function decideApproval(
 
   revalidatePath("/content-studio");
   revalidatePath("/client-portal");
+  revalidatePath("/landing-page-factory");
 }
