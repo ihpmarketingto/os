@@ -268,7 +268,18 @@ ZIP ingestion with secret scanning, automated component discovery into
 deployment adapters (deployments are recorded manually today), and the
 performance learning loop back into the Build Library.
 
-## Phase 5 — AI and Connected Workspace (core built 2026-07-08; awaiting OpenAI credits for full live verification)
+## Phase 5 — AI and Connected Workspace (core complete, live-verified 2026-07-08)
+
+**Acceptance criterion 15 verified live**: with OpenAI credits in place, the
+workspace generated a real executive-summary draft for the demo client
+(gpt-5-mini, US$0.0025) grounded entirely in retrieved context, with four
+recorded and displayed source citations (client profile, latest report,
+open tasks, active campaigns). Two live-fire fixes landed during
+verification: `ai_source_citations` was missing an INSERT policy
+(migration `0016`; citation failures now fail the run loudly instead of
+silently), and the gpt-5 reasoning-token budget needed raising because a
+small max_completion_tokens can be consumed entirely by internal
+reasoning, yielding an empty response.
 
 **Built and verified up to the provider boundary:**
 
@@ -296,10 +307,6 @@ performance learning loop back into the Build Library.
   cleanly in the UI and recorded as an error run.
 - System prompt enforces the IHP writing rules (Canadian spelling, no em
   dashes, no invented facts, context-only claims) on every draft.
-
-**Blocked on one external step:** the OpenAI account needs billing/credits
-(platform.openai.com > Settings > Billing). The moment credits exist, the
-same button produces the cited draft — acceptance criterion 15.
 
 **Still open in Phase 5 scope:** Gemini and Claude adapters (need keys),
 Google Workspace connected workflows (needs OAuth client), the ChatGPT and

@@ -263,7 +263,14 @@ export async function runDraft(_prev: DraftResult, formData: FormData): Promise<
     if (runError) throw new Error(runError.message);
 
     if (citations.length > 0) {
-      await supabase.from("ai_source_citations").insert(citations.map((c) => ({ ai_run_id: run.id, ...c })));
+      const { error: citationError } = await supabase
+        .from("ai_source_citations")
+        .insert(citations.map((c) => ({ ai_run_id: run.id, ...c })));
+      if (citationError) {
+        // A run without its citation trail violates the audit rules — fail
+        // loudly rather than quietly returning an uncited draft.
+        throw new Error(`Draft generated but citations could not be recorded: ${citationError.message}`);
+      }
     }
 
     await writeAuditLog(supabase, {

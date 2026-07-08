@@ -44,7 +44,9 @@ export async function executeOpenAiChat(
     body: JSON.stringify({
       model,
       messages,
-      max_completion_tokens: options?.maxOutputTokens ?? 1500,
+      // gpt-5 family models spend part of this budget on internal reasoning
+      // before any visible text; too small a cap yields an empty response.
+      max_completion_tokens: options?.maxOutputTokens ?? 4000,
     }),
   });
 
