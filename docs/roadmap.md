@@ -268,12 +268,45 @@ ZIP ingestion with secret scanning, automated component discovery into
 deployment adapters (deployments are recorded manually today), and the
 performance learning loop back into the Build Library.
 
-## Phase 5 — AI and Connected Workspace (not started)
+## Phase 5 — AI and Connected Workspace (core built 2026-07-08; awaiting OpenAI credits for full live verification)
 
-Real OpenAI/Gemini/Claude calls, Google Workspace document/email/calendar
-integration, ChatGPT and Claude Code MCP servers, AI workspace UI. The
-schema and routing framework already exist from Phase 0 — this phase wires
-real provider SDKs into `@ihp/ai-router` and builds the chat UI.
+**Built and verified up to the provider boundary:**
+
+- Execution layer in `@ihp/ai-router`: OpenAI chat adapter (gpt-5-mini
+  default) with token usage capture and per-run cost estimation (unit
+  tested); Gemini and Anthropic slots throw clear routing errors until
+  their keys arrive; `configuredProviders` feeds `selectProvider` so
+  routing never picks an unconfigured provider.
+- AI Workspace (/ai-intelligence): client and task-type selectors, draft
+  mode only. Four gates run before any provider call, in order: the user's
+  `ai_settings.ai_retrieve` permission for that client, the client's
+  `ai_enabled` toggle (with per-client allowed-provider list from
+  `ai_settings`), the organisation's monthly spend cap (US$25 hard
+  default until per-client/user caps are configurable), and provider
+  routing by task affinity.
+- Minimum authorised context: only summarised, RLS-checked blocks are
+  sent (client profile, 30-day channel summary, latest report, open
+  tasks, active campaigns). Financial and contact data are excluded.
+  Every block becomes an `ai_source_citations` row and is shown as a
+  source under the draft.
+- Every run — success or failure — lands in `ai_runs` with prompt,
+  output, provider, model, mode, estimated cost, and error message, plus
+  an `ai_retrieve` audit-log entry. Verified live: the full pipeline ran
+  end to end and OpenAI's 429 (account has no credits) was surfaced
+  cleanly in the UI and recorded as an error run.
+- System prompt enforces the IHP writing rules (Canadian spelling, no em
+  dashes, no invented facts, context-only claims) on every draft.
+
+**Blocked on one external step:** the OpenAI account needs billing/credits
+(platform.openai.com > Settings > Billing). The moment credits exist, the
+same button produces the cited draft — acceptance criterion 15.
+
+**Still open in Phase 5 scope:** Gemini and Claude adapters (need keys),
+Google Workspace connected workflows (needs OAuth client), the ChatGPT and
+Claude Code MCP servers (`apps/mcp-server`), action-proposal execution UI
+on `ai_action_proposals`, prompt template management, per-client/user
+spend caps, convert-to-content-brief/campaign/report flows, and connected
+knowledge search over `documents`.
 
 ## Phase 6 — Advanced Automation (not started)
 
