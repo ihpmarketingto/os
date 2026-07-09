@@ -5,6 +5,7 @@ import { requirePermission, writeAuditLog } from "@ihp/database";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireSession } from "@/lib/auth/session";
+import { isRuleEnabled, notifyUsers, recordRun } from "@/lib/automations/engine";
 import type { ContentStatus } from "@/lib/content/constants";
 
 export async function createContentItem(formData: FormData): Promise<void> {
@@ -115,7 +116,7 @@ export async function decideApproval(
     })
     .eq("id", approvalId)
     .eq("status", "pending")
-    .select("id, subject_type, subject_id, client_id")
+    .select("id, subject_type, subject_id, client_id, requested_by")
     .maybeSingle();
   if (approvalError) throw new Error(approvalError.message);
   if (!decided) throw new Error("This approval was already decided or you do not have access to it.");
@@ -149,6 +150,20 @@ export async function decideApproval(
     clientId: decided.client_id,
     metadata: { decision },
   });
+
+  // Automation: notify whoever requested the approval of the decision.
+  // Uses the admin client because the decider may be a portal user, who
+  // cannot (and should not) insert notifications for internal members.
+  if (decided.requested_by && (await isRuleEnabled(admin, session.organisationId, "approval_decided_notify"))) {
+    if (await recordRun(admin, session.organisationId, "approval_decided_notify", `${approvalId}:${decision}`, `Notified requester of ${decision}`)) {
+      await notifyUsers(admin, session.organisationId, [decided.requested_by], {
+        title: decision === "approved" ? "Client approved your request" : "Client requested changes",
+        body: `${decided.subject_type.replace(/_/g, " ")} decision recorded.`,
+        href: decided.subject_type === "landing_page" ? "/landing-page-factory" : "/content-studio",
+        clientId: decided.client_id,
+      });
+    }
+  }
 
   revalidatePath("/content-studio");
   revalidatePath("/client-portal");

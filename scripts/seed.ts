@@ -9,6 +9,7 @@
 import { config as loadDotenv } from "dotenv";
 import path from "node:path";
 import { loadServerEnv } from "@ihp/config";
+import { AUTOMATION_RULE_CATALOGUE } from "@ihp/types";
 import { createSupabaseAdminClient } from "@ihp/database/client-admin";
 
 loadDotenv({ path: path.resolve(__dirname, "../apps/web/.env.local") });
@@ -883,6 +884,21 @@ async function main() {
   } else {
     console.log("Landing page factory demo data already exists - skipping Phase 4 seed.");
   }
+
+  // --- Phase 6: install the automation rule catalogue (idempotent) ---------
+  const { error: rulesInstallError } = await supabase.from("automation_rules").upsert(
+    AUTOMATION_RULE_CATALOGUE.map((rule) => ({
+      organisation_id: organisationId,
+      rule_key: rule.key,
+      name: rule.name,
+      description: rule.description,
+      trigger_type: rule.trigger,
+      is_enabled: true,
+    })),
+    { onConflict: "organisation_id,rule_key", ignoreDuplicates: true },
+  );
+  if (rulesInstallError) throw rulesInstallError;
+  console.log(`automation rules installed: ${AUTOMATION_RULE_CATALOGUE.length}`);
 
   console.log("\nSeed complete.");
   console.log(`Sign in at http://localhost:3000/login with any demo user and password "${DEMO_PASSWORD}":`);

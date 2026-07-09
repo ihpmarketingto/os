@@ -1339,6 +1339,67 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["qa_runs"]["Row"]>;
         Relationships: [];
       };
+      automation_rules: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          rule_key: string;
+          name: string;
+          description: string | null;
+          trigger_type: "event" | "sweep";
+          is_enabled: boolean;
+          config: Json;
+          last_run_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["automation_rules"]["Row"]> & {
+          organisation_id: string;
+          rule_key: string;
+          name: string;
+          trigger_type: "event" | "sweep";
+        };
+        Update: Partial<Database["public"]["Tables"]["automation_rules"]["Row"]>;
+        Relationships: [];
+      };
+      automation_runs: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          rule_key: string;
+          dedupe_key: string;
+          status: "completed" | "failed";
+          summary: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["automation_runs"]["Row"]> & {
+          organisation_id: string;
+          rule_key: string;
+          dedupe_key: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["automation_runs"]["Row"]>;
+        Relationships: [];
+      };
+      notifications: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          user_id: string;
+          client_id: string | null;
+          title: string;
+          body: string | null;
+          href: string | null;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["notifications"]["Row"]> & {
+          organisation_id: string;
+          user_id: string;
+          title: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["notifications"]["Row"]>;
+        Relationships: [];
+      };
       deployments: {
         Row: {
           id: string;

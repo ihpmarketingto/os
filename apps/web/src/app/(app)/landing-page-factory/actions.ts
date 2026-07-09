@@ -5,6 +5,7 @@ import { canPublishLandingPage, summariseQaRun, type QaItem } from "@ihp/types";
 import { requirePermission, writeAuditLog, type Json } from "@ihp/database";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { isRuleEnabled, notifyUsers, recordRun } from "@/lib/automations/engine";
 
 function str(formData: FormData, key: string): string | null {
   const value = String(formData.get(key) ?? "").trim();
@@ -364,6 +365,27 @@ export async function recordQaRun(formData: FormData): Promise<void> {
     metadata: { overall, itemCount: items.length },
   });
 
+  // Automation: a failing QA run notifies the page owner (publish is
+  // already blocked by the gate regardless).
+  if (overall === "fail" && (await isRuleEnabled(supabase, session.organisationId, "qa_failed_notify"))) {
+    const { data: project } = await supabase
+      .from("landing_page_projects")
+      .select("name, client_id, created_by")
+      .eq("id", projectId)
+      .single();
+    if (project?.created_by) {
+      const failedChecks = items.filter((i) => i.result === "fail").map((i) => i.check);
+      if (await recordRun(supabase, session.organisationId, "qa_failed_notify", `${projectId}:${new Date().toISOString()}`, `QA failed for ${project.name}`)) {
+        await notifyUsers(supabase, session.organisationId, [project.created_by], {
+          title: `QA failed: ${project.name}`,
+          body: `Failed checks: ${failedChecks.slice(0, 4).join(", ")}${failedChecks.length > 4 ? "..." : ""}. Publishing is blocked.`,
+          href: "/landing-page-factory",
+          clientId: project.client_id,
+        });
+      }
+    }
+  }
+
   revalidatePath("/landing-page-factory");
 }
 
@@ -382,7 +404,7 @@ export async function publishPage(formData: FormData): Promise<void> {
 
   const { data: project, error: fetchError } = await supabase
     .from("landing_page_projects")
-    .select("id, name, status, client_id")
+    .select("id, name, status, client_id, created_by")
     .eq("id", projectId)
     .single();
   if (fetchError) throw new Error(fetchError.message);
@@ -441,6 +463,18 @@ export async function publishPage(formData: FormData): Promise<void> {
     clientId: project.client_id,
     metadata: { published: true, productionUrl },
   });
+
+  // Automation: deployment succeeded → notify the project owner.
+  if (project.created_by && (await isRuleEnabled(supabase, session.organisationId, "page_published_notify"))) {
+    if (await recordRun(supabase, session.organisationId, "page_published_notify", projectId, `Publish notification for ${project.name}`)) {
+      await notifyUsers(supabase, session.organisationId, [project.created_by], {
+        title: `Published: ${project.name}`,
+        body: `Live at ${productionUrl}`,
+        href: "/landing-page-factory",
+        clientId: project.client_id,
+      });
+    }
+  }
 
   revalidatePath("/landing-page-factory");
   revalidatePath("/client-portal");

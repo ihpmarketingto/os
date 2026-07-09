@@ -9,6 +9,7 @@ import { requireSession } from "@/lib/auth/session";
 import { slugify } from "@/lib/utils";
 import type { DealStage } from "@/lib/crm/constants";
 import { applyTaskTemplate } from "@/lib/projects/apply-template";
+import { isRuleEnabled, notifyUsers, recordRun } from "@/lib/automations/engine";
 
 export async function createLead(formData: FormData): Promise<void> {
   const session = await requireSession();
@@ -60,7 +61,29 @@ export async function createLead(formData: FormData): Promise<void> {
     metadata: { companyName },
   });
 
+  // Automation: new lead → follow-up task (event rule, deduped per lead).
+  if (await isRuleEnabled(supabase, session.organisationId, "new_lead_follow_up")) {
+    if (await recordRun(supabase, session.organisationId, "new_lead_follow_up", lead.id, `Follow-up task for ${companyName}`)) {
+      const due = new Date();
+      due.setDate(due.getDate() + 2);
+      await supabase.from("tasks").insert({
+        organisation_id: session.organisationId,
+        title: `Follow up with ${companyName}`,
+        category: "crm",
+        priority: "high",
+        assignee_id: session.userId,
+        due_date: due.toISOString().slice(0, 10),
+      });
+      await notifyUsers(supabase, session.organisationId, [session.userId], {
+        title: `Follow-up task created for ${companyName}`,
+        body: "Due in 2 days.",
+        href: "/tasks",
+      });
+    }
+  }
+
   revalidatePath("/crm");
+  revalidatePath("/tasks");
 }
 
 export async function convertLeadToDeal(leadId: string): Promise<void> {

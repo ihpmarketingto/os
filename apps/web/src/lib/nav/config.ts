@@ -52,7 +52,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Finance", href: "/finance", icon: Wallet, phase: 0, flagKey: "finance" },
   { label: "Landing Page Factory", href: "/landing-page-factory", icon: Rocket, phase: 0, flagKey: "landing_page_factory" },
   { label: "Documents and Assets", href: "/documents", icon: FileText, phase: 0 },
-  { label: "Automations", href: "/automations", icon: Workflow, phase: 6, flagKey: "automations" },
+  { label: "Automations", href: "/automations", icon: Workflow, phase: 0, flagKey: "automations" },
   { label: "AI Intelligence", href: "/ai-intelligence", icon: Sparkles, phase: 0, flagKey: "ai_intelligence" },
   { label: "Client Portal", href: "/client-portal", icon: DoorOpen, phase: 0, flagKey: "client_portal" },
   { label: "Integrations", href: "/integrations", icon: Plug, phase: 0 },

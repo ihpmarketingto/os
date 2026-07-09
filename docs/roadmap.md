@@ -315,14 +315,49 @@ on `ai_action_proposals`, prompt template management, per-client/user
 spend caps, convert-to-content-brief/campaign/report flows, and connected
 knowledge search over `documents`.
 
-## Phase 6 — Advanced Automation (not started)
+## Phase 6 — Advanced Automation (core complete, live-verified 2026-07-08)
 
-27A additions: nurture sequence engine (12 template flows including the
-default 10-day cold-lead sequence with editable timing/content), booking
-and show-up workflows (confirmations, reminders, no-show recovery,
-reschedule, post-appointment follow-up), SMS compliance layer (consent
-capture, opt-out, quiet hours, delivery status, reply routing, human
-takeover) — all sends gated on human approval per the AI action rules.
-Workflow builder, event-triggered automations, notifications, escalations,
+**Built and verified against the live project:**
+
+- Schema (migration `0017`): `automation_rules` (per-org, toggleable),
+  `automation_runs` with a unique (org, rule, dedupe key) constraint —
+  the database itself guarantees an automation never double-fires for the
+  same subject — and `notifications` (users read/update only their own;
+  internal members may notify members of their org).
+- Engine primitives (`lib/automations/engine.ts`): fail-closed rule
+  checks (missing rule = disabled), conflict-based dedupe, notification
+  fan-out, owner escalation. Automations create tasks and notifications
+  only — they never send email/SMS, publish, or spend.
+- Event rules, fired inline from the owning actions: new lead →
+  follow-up task + notification (verified live); approval decided →
+  notify requester; page published → notify project owner; QA failed →
+  notify page owner with the failing checks.
+- Sweep rules, run from the Automations page (a scheduled caller can
+  reuse `runSweep` as-is): invoice overdue (flips status + notifies
+  finance owners), renewal due (contracts and retainers in their notice
+  windows), task overdue (re-reminds at most weekly), stale touchpoint
+  (30 days without notes/meetings → relationship task for the account
+  manager, at most monthly, with a new-client grace period), ad spend
+  anomaly (7-day spend with zero leads or ROAS under 1).
+- Notifications bell in the top bar with unread badge, per-user targeting
+  (verified: the specialist's task reminder went to the specialist, not
+  the owner) and mark-all-read.
+- Verified live: first sweep took 5 actions (2 renewals, 3 overdue
+  tasks); an immediate second sweep took zero — dedupe holds.
+
+**Still open in Phase 6 scope:** a scheduled caller (cron/Edge Function
+invoking runSweep — the function is ready), the visual workflow builder,
+scheduled monthly report drafts, campaign-launch checklists, KPI-under-
+target tasks, client-request triage (needs the portal request form), and
+the 27A nurture/booking/SMS flows below.
+
+27A additions still open: nurture sequence engine (12 template flows
+including the default 10-day cold-lead sequence with editable
+timing/content), booking and show-up workflows (confirmations, reminders,
+no-show recovery, reschedule, post-appointment follow-up), SMS compliance
+layer (consent capture, opt-out, quiet hours, delivery status, reply
+routing, human takeover) — all sends gated on human approval per the AI
+action rules. Original scope list: workflow builder, event-triggered
+automations, notifications, escalations,
 scheduled reporting. Needs `automation_rules`, `automation_runs`,
 `notifications`.

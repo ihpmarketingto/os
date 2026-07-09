@@ -5,3 +5,4 @@ export * from "./lead-score";
 export * from "./finance-math";
 export * from "./channel-metrics";
 export * from "./landing-page-gate";
+export * from "./automation-rules";

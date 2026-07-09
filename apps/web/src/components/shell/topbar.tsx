@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
+import { NotificationsBell, type NotificationItem } from "@/components/shell/notifications-bell";
 import { signOut } from "@/lib/auth/actions";
 
 function initials(name: string | null, email: string): string {
@@ -32,11 +33,15 @@ export function Topbar({
   userLabel,
   email,
   roleSlug,
+  notifications,
+  unreadCount,
 }: {
   onSearchClick: () => void;
   userLabel: string | null;
   email: string;
   roleSlug: string;
+  notifications: NotificationItem[];
+  unreadCount: number;
 }) {
   return (
     <header className="flex h-16 items-center justify-between border-b bg-background px-6">
@@ -50,6 +55,7 @@ export function Topbar({
       </button>
 
       <div className="flex items-center gap-2">
+        <NotificationsBell notifications={notifications} unreadCount={unreadCount} />
         <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger
