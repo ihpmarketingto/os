@@ -1372,6 +1372,77 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["creative_assets"]["Row"]>;
         Relationships: [];
       };
+      seo_keywords: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          keyword: string;
+          location: string | null;
+          intent: "informational" | "commercial" | "transactional" | "navigational" | "local" | null;
+          target_url: string | null;
+          search_volume: number | null;
+          difficulty: number | null;
+          is_priority: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["seo_keywords"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          keyword: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["seo_keywords"]["Row"]>;
+        Relationships: [];
+      };
+      seo_rankings: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          keyword_id: string;
+          recorded_on: string;
+          /* Null means measured and not ranking. Never 0, never a sentinel. */
+          position: number | null;
+          ranking_url: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["seo_rankings"]["Row"]> & {
+          organisation_id: string;
+          keyword_id: string;
+          recorded_on: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["seo_rankings"]["Row"]>;
+        Relationships: [];
+      };
+      gbp_metrics: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          period_start: string;
+          period_end: string;
+          profile_views: number;
+          search_impressions: number;
+          calls: number;
+          direction_requests: number;
+          website_clicks: number;
+          bookings: number;
+          reviews_total: number | null;
+          new_reviews: number | null;
+          average_rating: number | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["gbp_metrics"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          period_start: string;
+          period_end: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["gbp_metrics"]["Row"]>;
+        Relationships: [];
+      };
       designs: {
         Row: {
           id: string;

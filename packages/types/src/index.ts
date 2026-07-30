@@ -10,3 +10,4 @@ export * from "./service-catalogue";
 export * from "./ad-creative";
 export * from "./design-resize";
 export * from "./booking-metrics";
+export * from "./seo-metrics";

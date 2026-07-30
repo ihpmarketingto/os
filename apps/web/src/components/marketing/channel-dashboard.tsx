@@ -19,11 +19,14 @@ export async function ChannelDashboard({
   description,
   channels,
   defaultChannel,
+  hideHeading = false,
 }: {
   title: string;
   description: string;
   channels: MetricChannel[];
   defaultChannel: MetricChannel;
+  /** Set when the dashboard is nested under a page that already has an h1. */
+  hideHeading?: boolean;
 }) {
   const session = await requireSession();
   const supabase = await getSupabaseServerClient();
@@ -64,7 +67,11 @@ export async function ChannelDashboard({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-heading text-2xl">{title}</h1>
+          {hideHeading ? (
+            <h2 className="font-heading text-lg">{title}</h2>
+          ) : (
+            <h1 className="font-heading text-2xl">{title}</h1>
+          )}
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
         <ImportMetricsDialog
