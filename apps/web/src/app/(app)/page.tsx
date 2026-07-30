@@ -145,7 +145,10 @@ export default async function HomePage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">AI provider router</CardTitle>
-            <CardDescription>Configured via environment variables. No AI runs happen until Phase 5 ships.</CardDescription>
+            <CardDescription>
+              Configured via environment variables. Every run is logged with its cost and cited sources, and AI never
+              takes an irreversible action without a person approving it.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {aiProviders.map((provider) => (
