@@ -948,6 +948,7 @@ export interface Database {
           revenue: number;
           extras: Json;
           source: "csv_import" | "manual" | "api";
+          ad_creative_id: string | null;
           created_by: string | null;
           created_at: string;
         };
@@ -1337,6 +1338,79 @@ export interface Database {
           overall: Database["public"]["Tables"]["qa_runs"]["Row"]["overall"];
         };
         Update: Partial<Database["public"]["Tables"]["qa_runs"]["Row"]>;
+        Relationships: [];
+      };
+      ad_creatives: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          campaign_id: string | null;
+          concept: string;
+          variant_label: string;
+          name: string;
+          channel: "meta_ads" | "google_ads" | "social" | "other";
+          format: "static" | "image" | "carousel" | "video" | "ugc_video" | "story";
+          audience: string | null;
+          primary_text: string | null;
+          headline: string | null;
+          description: string | null;
+          cta: string | null;
+          asset_document_id: string | null;
+          content_item_id: string | null;
+          status: "draft" | "in_review" | "approved" | "live" | "paused" | "retired";
+          launched_at: string | null;
+          retired_at: string | null;
+          fatigue_flagged_at: string | null;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["ad_creatives"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          concept: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["ad_creatives"]["Row"]>;
+        Relationships: [];
+      };
+      optimisation_log: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          campaign_id: string | null;
+          ad_creative_id: string | null;
+          change_type:
+            | "budget"
+            | "audience"
+            | "creative"
+            | "bid"
+            | "targeting"
+            | "placement"
+            | "pause"
+            | "scale"
+            | "other";
+          description: string;
+          rationale: string | null;
+          expected_outcome: string | null;
+          observed_outcome: string | null;
+          decision: "scale" | "iterate" | "kill" | "hold" | null;
+          changed_at: string;
+          reviewed_at: string | null;
+          changed_by: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["optimisation_log"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          change_type: Database["public"]["Tables"]["optimisation_log"]["Row"]["change_type"];
+          description: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["optimisation_log"]["Row"]>;
         Relationships: [];
       };
       service_packages: {

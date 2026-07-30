@@ -348,9 +348,34 @@ service to its delivery work. Now it does.
   package, because a package with two SOPs in the same trigger was
   producing two identically named projects.
 
+### Ads depth (complete, live-verified 2026-07-29)
+
+Migration `0020` adds `ad_creatives` (variants grouped under a shared
+concept, with copy, format, audience, asset and Content Studio approval
+links) and `optimisation_log` (what changed, why, expected outcome, then
+observed outcome and a scale/iterate/kill/hold decision). Per-creative
+performance rides on `campaign_metrics` via a nullable `ad_creative_id`,
+so creative rows roll up into channel totals automatically and the same
+tested summary function serves both.
+
+- Creative ranking refuses to rank below CAD $50 spend or 1,000
+  impressions — a confident ranking off thin data is worse than none.
+- Fatigue detection compares CTR between the first and second half of a
+  creative's run and flags a decline of 25% or more, and says exactly what
+  it measured. Frequency would be the better signal but needs reach, which
+  platform CSV exports do not reliably carry.
+- Creative-level CSV import matches the creative column against existing
+  creative names and reports unmatched names rather than dropping them.
+- Status transitions are validated server-side: nothing reaches `live`
+  without passing through `approved`, so spend never goes behind creative
+  that has not been signed off.
+- Verified live on seeded data: the winning UGC variant ranked first at
+  9.4x ROAS, the weak static ranked fourth, a decaying variant was flagged
+  at a 58.8% CTR decline, and the concept-by-audience matrix showed which
+  pairings were never tested.
+
 **Still open on fulfilment depth** (the delivery SOPs exist for all of
-these; the specialised tooling does not): ads creative variants with a
-testing matrix, optimisation log and creative-fatigue tracking; the
+these; the specialised tooling does not): the
 bookings UI (table exists since migration 0011, no screens); nurture
 sequence execution with SMS consent and quiet hours; email flow map and
 template library; a Content Studio calendar view; SEO keyword and rank

@@ -995,6 +995,121 @@ async function main() {
     console.log("Client services already exist - skipping subscription seed.");
   }
 
+  // --- Ad creative, per-creative metrics and the optimisation log ----------
+  const { count: existingCreatives } = await supabase
+    .from("ad_creatives")
+    .select("id", { count: "exact", head: true })
+    .eq("organisation_id", organisationId);
+
+  if (!existingCreatives) {
+    const { data: lumenCampaign } = await supabase
+      .from("campaigns")
+      .select("id")
+      .eq("client_id", lumen.id)
+      .limit(1)
+      .maybeSingle();
+
+    const creativeDefs = [
+      { concept: "Summer Glow offer", variant: "A", name: "UGC video A", format: "ugc_video" as const, audience: "Cold interest: skincare", headline: "Three sessions, visible difference", cta: "Book my consult" },
+      { concept: "Summer Glow offer", variant: "B", name: "Static B", format: "static" as const, audience: "Cold interest: skincare", headline: "20% off your first facial series", cta: "Book my consult" },
+      { concept: "Summer Glow offer", variant: "C", name: "UGC video C", format: "ugc_video" as const, audience: "Warm retargeting", headline: "Still thinking about it?", cta: "Claim my 20%" },
+      { concept: "Dermatologist proof", variant: "A", name: "Proof carousel A", format: "carousel" as const, audience: "Warm retargeting", headline: "Developed with dermatologists", cta: "See the protocol" },
+    ];
+
+    const { data: creativeRows, error: creativeError } = await supabase
+      .from("ad_creatives")
+      .insert(
+        creativeDefs.map((c) => ({
+          organisation_id: organisationId,
+          client_id: lumen.id,
+          campaign_id: lumenCampaign?.id ?? null,
+          concept: c.concept,
+          variant_label: c.variant,
+          name: c.name,
+          channel: "meta_ads" as const,
+          format: c.format,
+          audience: c.audience,
+          headline: c.headline,
+          cta: c.cta,
+          primary_text: "Book a consult and we will map the right series for your skin. Individual results vary.",
+          status: "live" as const,
+          launched_at: "2026-07-01T09:00:00Z",
+          created_by: specialistId,
+        })),
+      )
+      .select("id, name");
+    if (creativeError) throw creativeError;
+    const creativeIdByName = new Map(creativeRows.map((c) => [c.name, c.id]));
+
+    // Eight days per creative. UGC video A wins; Static B underperforms;
+    // UGC video C starts strong then decays, so fatigue detection has a
+    // genuine case to catch rather than a manufactured flag.
+    const profiles: Record<string, { imp: number; clicksEarly: number; clicksLate: number; spend: number; leads: number; conv: number; rev: number }> = {
+      "UGC video A": { imp: 9000, clicksEarly: 190, clicksLate: 185, spend: 42, leads: 6, conv: 3, rev: 430 },
+      "Static B": { imp: 8600, clicksEarly: 95, clicksLate: 88, spend: 40, leads: 2, conv: 1, rev: 120 },
+      "UGC video C": { imp: 9200, clicksEarly: 230, clicksLate: 95, spend: 45, leads: 5, conv: 2, rev: 300 },
+      "Proof carousel A": { imp: 7800, clicksEarly: 150, clicksLate: 142, spend: 38, leads: 4, conv: 2, rev: 290 },
+    };
+
+    const metricRows = [];
+    for (const [name, p] of Object.entries(profiles)) {
+      for (let d = 0; d < 8; d++) {
+        const date = new Date(Date.UTC(2026, 6, 20 + d));
+        const isLate = d >= 4;
+        metricRows.push({
+          organisation_id: organisationId,
+          client_id: lumen.id,
+          campaign_id: lumenCampaign?.id ?? null,
+          ad_creative_id: creativeIdByName.get(name)!,
+          channel: "meta_ads" as const,
+          metric_date: date.toISOString().slice(0, 10),
+          spend: p.spend,
+          impressions: p.imp,
+          clicks: isLate ? p.clicksLate : p.clicksEarly,
+          leads: isLate ? Math.max(1, p.leads - 1) : p.leads,
+          conversions: p.conv,
+          revenue: isLate ? Math.round(p.rev * 0.85) : p.rev,
+          source: "csv_import" as const,
+          created_by: specialistId,
+        });
+      }
+    }
+    const { error: metricError } = await supabase.from("campaign_metrics").insert(metricRows);
+    if (metricError) throw metricError;
+
+    const { error: optError } = await supabase.from("optimisation_log").insert([
+      {
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        campaign_id: lumenCampaign?.id ?? null,
+        ad_creative_id: creativeIdByName.get("Static B")!,
+        change_type: "creative" as const,
+        description: "Paused Static B in the cold interest ad set",
+        rationale: "CTR sat at roughly half the UGC variants across eight days at comparable spend",
+        expected_outcome: "Budget shifts to UGC video A without raising blended CPL",
+        observed_outcome: "Blended CPL fell from $14.20 to $11.80 over the following week",
+        decision: "scale" as const,
+        reviewed_at: new Date().toISOString(),
+        changed_by: specialistId,
+      },
+      {
+        organisation_id: organisationId,
+        client_id: lumen.id,
+        campaign_id: lumenCampaign?.id ?? null,
+        change_type: "budget" as const,
+        description: "Raised daily budget from $50 to $65 on the warm retargeting ad set",
+        rationale: "Retargeting held ROAS above 3x for six consecutive days",
+        expected_outcome: "About 20% more conversions without ROAS dropping below 2.5x",
+        changed_by: accountManagerId,
+      },
+    ]);
+    if (optError) throw optError;
+
+    console.log(`ad creative seeded: ${creativeDefs.length} variants, ${metricRows.length} metric rows, 2 optimisation entries`);
+  } else {
+    console.log("Ad creative already exists - skipping creative seed.");
+  }
+
   console.log("\nSeed complete.");
   console.log(`Sign in at http://localhost:3000/login with any demo user and password "${DEMO_PASSWORD}":`);
   for (const user of DEMO_USERS) {
