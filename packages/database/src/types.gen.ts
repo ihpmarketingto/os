@@ -1340,6 +1340,69 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["qa_runs"]["Row"]>;
         Relationships: [];
       };
+      creative_assets: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          name: string;
+          storage_path: string;
+          mime_type: string | null;
+          width: number | null;
+          height: number | null;
+          size_bytes: number | null;
+          origin: "uploaded" | "ai_generated";
+          generation_prompt: string | null;
+          generation_provider: string | null;
+          generation_model: string | null;
+          generation_cost: number | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          depicts_real_client_result: boolean;
+          usage_restrictions: string | null;
+          created_by: string | null;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["creative_assets"]["Row"]> & {
+          organisation_id: string;
+          name: string;
+          storage_path: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["creative_assets"]["Row"]>;
+        Relationships: [];
+      };
+      designs: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          name: string;
+          format: "square" | "portrait" | "story" | "landscape" | "custom";
+          width: number;
+          height: number;
+          canvas_json: Json;
+          thumbnail_path: string | null;
+          export_path: string | null;
+          ad_creative_id: string | null;
+          content_item_id: string | null;
+          campaign_id: string | null;
+          status: "draft" | "in_review" | "approved" | "archived";
+          is_template: boolean;
+          version: number;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["designs"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["designs"]["Row"]>;
+        Relationships: [];
+      };
       ad_creatives: {
         Row: {
           id: string;
