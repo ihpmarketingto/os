@@ -17,15 +17,24 @@ needed in GitHub Actions.
 
 ## Vercel (production hosting for apps/web)
 
-Project settings when importing the repo:
+**Live**: https://ihp-os.vercel.app (team `ihp1`, project `ihp-os`), first
+deployed 2026-07-09.
 
-| Setting | Value |
-| --- | --- |
-| Framework preset | Next.js |
-| Root Directory | `apps/web` |
-| Include files outside Root Directory | Enabled (required: workspace packages live in `packages/`) |
-| Install / build commands | Defaults (Vercel detects npm workspaces and installs from the repo root) |
-| Node version | 22.x or 24.x |
+Build configuration lives in `vercel.json` at the repo root rather than in
+dashboard settings, so it is versioned and reproducible: the project
+deploys from the repo root (giving the build access to the workspace
+packages in `packages/`) and builds `apps/web` via the npm workspace.
+
+`APP_URL` is set explicitly for production. When it is absent, the config
+loader falls back to `VERCEL_PROJECT_PRODUCTION_URL` / `VERCEL_URL`, so
+preview deployments stay self-consistent instead of redirecting to
+production or failing env validation.
+
+Deploy from the CLI:
+
+```bash
+vercel deploy --prod
+```
 
 ### Production environment variables
 

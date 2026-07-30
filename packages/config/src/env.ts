@@ -84,7 +84,17 @@ let cachedPublicEnv: PublicEnv | null = null;
 export function loadServerEnv(source: Record<string, string | undefined> = process.env): ServerEnv {
   if (cachedServerEnv) return cachedServerEnv;
 
-  const core = coreServerSchema.parse(source);
+  // On Vercel, fall back to the deployment's own URL when APP_URL is not set
+  // explicitly. This keeps preview deployments self-consistent (OAuth
+  // redirects and magic links point at the deployment being tested) instead
+  // of failing validation or redirecting to production.
+  const withVercelFallback = { ...source };
+  if (!withVercelFallback.APP_URL) {
+    const vercelHost = source.VERCEL_PROJECT_PRODUCTION_URL ?? source.VERCEL_URL;
+    if (vercelHost) withVercelFallback.APP_URL = `https://${vercelHost}`;
+  }
+
+  const core = coreServerSchema.parse(withVercelFallback);
   const optionalResult = optionalIntegrationSchema.safeParse(source);
   const optional = optionalResult.success ? optionalResult.data : {};
 
