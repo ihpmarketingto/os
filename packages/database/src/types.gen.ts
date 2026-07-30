@@ -1339,6 +1339,90 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["qa_runs"]["Row"]>;
         Relationships: [];
       };
+      service_packages: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          slug: string;
+          name: string;
+          category:
+            | "strategy"
+            | "website"
+            | "landing_pages"
+            | "paid_media"
+            | "seo"
+            | "local_seo"
+            | "social"
+            | "email"
+            | "lifecycle"
+            | "booking"
+            | "pr"
+            | "events"
+            | "reporting"
+            | "other";
+          description: string | null;
+          cadence: "one_time" | "monthly" | "quarterly";
+          default_included_hours: number | null;
+          default_price: number | null;
+          currency: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["service_packages"]["Row"]> & {
+          organisation_id: string;
+          slug: string;
+          name: string;
+          category: Database["public"]["Tables"]["service_packages"]["Row"]["category"];
+        };
+        Update: Partial<Database["public"]["Tables"]["service_packages"]["Row"]>;
+        Relationships: [];
+      };
+      service_package_templates: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          service_package_id: string;
+          task_template_id: string;
+          trigger: "on_start" | "each_period";
+          sort_order: number;
+        };
+        Insert: Partial<Database["public"]["Tables"]["service_package_templates"]["Row"]> & {
+          organisation_id: string;
+          service_package_id: string;
+          task_template_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_package_templates"]["Row"]>;
+        Relationships: [];
+      };
+      client_services: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          service_package_id: string;
+          retainer_id: string | null;
+          owner_id: string | null;
+          status: "active" | "paused" | "ended";
+          cadence: "one_time" | "monthly" | "quarterly" | null;
+          included_hours: number | null;
+          price: number | null;
+          start_date: string;
+          end_date: string | null;
+          last_fulfilled_period: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["client_services"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          service_package_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["client_services"]["Row"]>;
+        Relationships: [];
+      };
       automation_rules: {
         Row: {
           id: string;

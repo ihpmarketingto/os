@@ -34,6 +34,13 @@ export const AUTOMATION_RULE_CATALOGUE: {
     trigger: "event",
   },
   {
+    key: "service_delivery",
+    name: "Service delivery: generate the cycle's work",
+    description:
+      "Each active client service generates its delivery project and tasks from its SOPs: setup work once, then every month or quarter. This is what makes retainer fulfilment repeatable.",
+    trigger: "sweep",
+  },
+  {
     key: "invoice_overdue",
     name: "Invoice overdue: flag and notify",
     description: "Sent invoices past their due date flip to overdue, and finance owners are notified.",

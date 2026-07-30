@@ -35,8 +35,15 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
     contract_end_date: client.contract_end_date,
   });
 
-  const [{ data: projects }, { data: tasks }, { data: documents }, { data: content }, { data: notes }, { data: meetings }] =
-    await Promise.all([
+  const [
+    { data: projects },
+    { data: tasks },
+    { data: documents },
+    { data: content },
+    { data: notes },
+    { data: meetings },
+    { data: clientServices },
+  ] = await Promise.all([
       supabase.from("projects").select("id, name, status").eq("client_id", client.id).order("created_at", { ascending: false }),
       supabase
         .from("tasks")
@@ -48,6 +55,12 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
       supabase.from("content_items").select("id, hook, content_type, status").eq("client_id", client.id).order("created_at", { ascending: false }).limit(10),
       supabase.from("notes").select("id, body, created_at").eq("client_id", client.id).order("created_at", { ascending: false }).limit(5),
       supabase.from("meetings").select("id, title, scheduled_at, meeting_type").eq("client_id", client.id).order("scheduled_at", { ascending: false }).limit(5),
+      supabase
+        .from("client_services")
+        .select("id, status, cadence, included_hours, last_fulfilled_period, package:service_packages(name, cadence, category), owner:profiles(full_name)")
+        .eq("client_id", client.id)
+        .is("deleted_at", null)
+        .order("created_at"),
     ]);
 
   const accountManager = client.account_manager as unknown as { full_name: string | null } | null;
@@ -106,6 +119,55 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="text-base">Services bought ({clientServices?.length ?? 0})</CardTitle>
+            <CardDescription>
+              Each active service regenerates its delivery work every cycle through the service delivery automation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!clientServices || clientServices.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No services attached yet. Add one so delivery generates automatically each cycle.
+              </p>
+            ) : (
+              <ul className="divide-y">
+                {clientServices.map((cs) => {
+                  const pkg = cs.package as unknown as { name: string; cadence: string; category: string } | null;
+                  const owner = cs.owner as unknown as { full_name: string | null } | null;
+                  const cadence = cs.cadence ?? pkg?.cadence ?? "monthly";
+                  return (
+                    <li key={cs.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                      <span>
+                        <span className="font-medium">{pkg?.name}</span>
+                        <span className="text-muted-foreground">
+                          {" · "}
+                          {cadence.replace(/_/g, " ")}
+                          {cs.included_hours ? ` · ${cs.included_hours}h included` : ""}
+                          {owner?.full_name ? ` · ${owner.full_name}` : ""}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        {cs.last_fulfilled_period ? (
+                          <span className="text-xs text-muted-foreground">
+                            last generated {cs.last_fulfilled_period}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-brand">awaiting first generation</span>
+                        )}
+                        <Badge variant={cs.status === "active" ? "default" : "outline"} className="capitalize">
+                          {cs.status}
+                        </Badge>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Projects ({projects?.length ?? 0})</CardTitle>

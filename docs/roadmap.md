@@ -315,6 +315,49 @@ on `ai_action_proposals`, prompt template management, per-client/user
 spend caps, convert-to-content-brief/campaign/report flows, and connected
 knowledge search over `documents`.
 
+## Repeatable fulfilment (service catalogue + delivery engine, live-verified 2026-07-29)
+
+The structural gap that made fulfilment manual: nothing connected a sold
+service to its delivery work. Now it does.
+
+- Schema (migrations `0018`-`0019`): `service_packages` (the sellable
+  catalogue), `service_package_templates` (which SOPs a service runs, and
+  whether they fire once at setup or every cycle), `client_services` (what
+  each client bought, with cadence, included hours, owner and period
+  tracking). Six new task templates cover the workstreams that had no SOP:
+  booking and reminder flow, lead nurture sequence, no-show recovery,
+  lifecycle email flow build, social content calendar, event reporting and
+  wrap. Two more cover ads specifically: ad creative production (concepts,
+  copy, images, variants, client approval before spend) and ad account audit.
+- Catalogue: 14 sellable packages across strategy, paid media, ad creative,
+  social, landing pages, website, CRO, SEO, local SEO, email and lifecycle,
+  booking and nurture, PR and influencer, events, and reporting — each
+  mapped to its delivery SOPs (24 links).
+- Delivery engine (`lib/automations/delivery.ts`), wired as the
+  `service_delivery` sweep rule so it inherits the automation engine's
+  fail-closed rule checks and database-enforced dedupe: each active client
+  service generates its setup work once, then its per-cycle work every
+  month or quarter. Each cycle becomes its own project named for the SOP it
+  contains, holding that cycle's tasks with dates offset from generation.
+- UI: Settings > Services shows the catalogue with each service's SOPs and
+  how many clients buy it; Client 360 shows services bought with their
+  cadence, owner and last generated period.
+- Verified live: 9 client services generated 20 projects and 105 tasks
+  across five clients in one sweep; an immediate re-run took zero actions.
+  One live-fire fix: projects are named for their SOP rather than their
+  package, because a package with two SOPs in the same trigger was
+  producing two identically named projects.
+
+**Still open on fulfilment depth** (the delivery SOPs exist for all of
+these; the specialised tooling does not): ads creative variants with a
+testing matrix, optimisation log and creative-fatigue tracking; the
+bookings UI (table exists since migration 0011, no screens); nurture
+sequence execution with SMS consent and quiet hours; email flow map and
+template library; a Content Studio calendar view; SEO keyword and rank
+tracking with a GBP workflow; event run-of-show, sponsors, speakers and
+accreditation; report PDF export; PR pitch tracking UI; and a client
+request form in the portal.
+
 ## Phase 6 — Advanced Automation (core complete, live-verified 2026-07-08)
 
 **Built and verified against the live project:**

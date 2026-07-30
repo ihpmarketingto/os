@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const TABS = [
   { href: "/settings/team", label: "Team" },
+  { href: "/settings/services", label: "Services" },
   { href: "/settings/audit-log", label: "Audit Log" },
   { href: "/settings/feature-flags", label: "Feature Flags" },
   { href: "/integrations", label: "Integrations" },

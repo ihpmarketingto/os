@@ -9,7 +9,7 @@
 import { config as loadDotenv } from "dotenv";
 import path from "node:path";
 import { loadServerEnv } from "@ihp/config";
-import { AUTOMATION_RULE_CATALOGUE } from "@ihp/types";
+import { AUTOMATION_RULE_CATALOGUE, SERVICE_CATALOGUE } from "@ihp/types";
 import { createSupabaseAdminClient } from "@ihp/database/client-admin";
 
 loadDotenv({ path: path.resolve(__dirname, "../apps/web/.env.local") });
@@ -899,6 +899,101 @@ async function main() {
   );
   if (rulesInstallError) throw rulesInstallError;
   console.log(`automation rules installed: ${AUTOMATION_RULE_CATALOGUE.length}`);
+
+  // --- Service catalogue: install packages and link their SOPs -------------
+  const { data: allTemplates } = await supabase.from("task_templates").select("id, name").is("organisation_id", null);
+  const templateIdByName = new Map((allTemplates ?? []).map((t) => [t.name, t.id]));
+
+  const { data: packageRows, error: packagesError } = await supabase
+    .from("service_packages")
+    .upsert(
+      SERVICE_CATALOGUE.map((pkg) => ({
+        organisation_id: organisationId,
+        slug: pkg.slug,
+        name: pkg.name,
+        category: pkg.category,
+        description: pkg.description,
+        cadence: pkg.cadence,
+        default_included_hours: pkg.defaultIncludedHours,
+      })),
+      { onConflict: "organisation_id,slug" },
+    )
+    .select("id, slug");
+  if (packagesError) throw packagesError;
+  const packageIdBySlug = new Map(packageRows.map((p) => [p.slug, p.id]));
+
+  const links: {
+    organisation_id: string;
+    service_package_id: string;
+    task_template_id: string;
+    trigger: "on_start" | "each_period";
+    sort_order: number;
+  }[] = [];
+  const missingTemplates: string[] = [];
+  for (const pkg of SERVICE_CATALOGUE) {
+    pkg.templates.forEach((tpl, index) => {
+      const templateId = templateIdByName.get(tpl.name);
+      if (!templateId) {
+        missingTemplates.push(`${pkg.slug} -> ${tpl.name}`);
+        return;
+      }
+      links.push({
+        organisation_id: organisationId,
+        service_package_id: packageIdBySlug.get(pkg.slug)!,
+        task_template_id: templateId,
+        trigger: tpl.trigger,
+        sort_order: index,
+      });
+    });
+  }
+  if (missingTemplates.length > 0) {
+    throw new Error(`Service catalogue references task templates that do not exist: ${missingTemplates.join(", ")}`);
+  }
+  const { error: linkError } = await supabase
+    .from("service_package_templates")
+    .upsert(links, { onConflict: "service_package_id,task_template_id,trigger", ignoreDuplicates: true });
+  if (linkError) throw linkError;
+  console.log(`service catalogue installed: ${SERVICE_CATALOGUE.length} packages, ${links.length} SOP links`);
+
+  // Attach a realistic service mix to demo clients so delivery generation
+  // has something to fulfil.
+  const { count: existingClientServices } = await supabase
+    .from("client_services")
+    .select("id", { count: "exact", head: true })
+    .eq("organisation_id", organisationId);
+
+  if (!existingClientServices) {
+    const bloom2 = clientBySlug.get("bloom-beauty-bar")!;
+    const voltway2 = clientBySlug.get("voltway-electric")!;
+    const nightshade2 = clientBySlug.get("nightshade-live")!;
+
+    const subscriptions: { clientId: string; slug: string; owner: string }[] = [
+      { clientId: lumen.id, slug: "paid-media-management", owner: accountManagerId },
+      { clientId: lumen.id, slug: "social-content-production", owner: specialistId },
+      { clientId: lumen.id, slug: "email-lifecycle-management", owner: specialistId },
+      { clientId: bloom2.id, slug: "booking-and-nurture", owner: accountManagerId },
+      { clientId: bloom2.id, slug: "local-seo", owner: specialistId },
+      { clientId: voltway2.id, slug: "local-seo", owner: contractorId },
+      { clientId: cortex.id, slug: "seo-retainer", owner: specialistId },
+      { clientId: cortex.id, slug: "cro-programme", owner: specialistId },
+      { clientId: nightshade2.id, slug: "event-promotion", owner: accountManagerId },
+    ];
+
+    const { error: subError } = await supabase.from("client_services").insert(
+      subscriptions.map((sub) => ({
+        organisation_id: organisationId,
+        client_id: sub.clientId,
+        service_package_id: packageIdBySlug.get(sub.slug)!,
+        owner_id: sub.owner,
+        start_date: "2026-07-01",
+        status: "active" as const,
+      })),
+    );
+    if (subError) throw subError;
+    console.log(`client services attached: ${subscriptions.length}`);
+  } else {
+    console.log("Client services already exist - skipping subscription seed.");
+  }
 
   console.log("\nSeed complete.");
   console.log(`Sign in at http://localhost:3000/login with any demo user and password "${DEMO_PASSWORD}":`);

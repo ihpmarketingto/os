@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@ihp/database/types.gen";
 import { computeChannelSummary, isRenewalDue } from "@ihp/types";
 import { isRuleEnabled, notifyUsers, ownerUserIds, recordRun } from "./engine";
+import { runServiceDelivery } from "./delivery";
 
 type Supabase = SupabaseClient<Database>;
 
@@ -22,6 +23,15 @@ export async function runSweep(supabase: Supabase, organisationId: string): Prom
   const today = new Date();
   const todayIso = today.toISOString().slice(0, 10);
   const owners = await ownerUserIds(supabase, organisationId);
+
+  // --- service_delivery (runs first: it creates the work everything else
+  // --- then reports on and chases) ------------------------------------------
+  const deliveryOutcomes = await runServiceDelivery(supabase, organisationId);
+  if (deliveryOutcomes.length > 0) {
+    results.push({ rule: "service_delivery", actions: deliveryOutcomes.length });
+  } else if (await isRuleEnabled(supabase, organisationId, "service_delivery")) {
+    results.push({ rule: "service_delivery", actions: 0 });
+  }
 
   // --- invoice_overdue ------------------------------------------------------
   if (await isRuleEnabled(supabase, organisationId, "invoice_overdue")) {
