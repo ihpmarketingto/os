@@ -1,14 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import * as fabric from "fabric";
+import { DESIGN_FORMATS, type DesignFormat } from "@ihp/types";
 import {
   ArrowDown,
   ArrowUp,
+  Circle as CircleIcon,
   Copy,
+  Crop,
   Download,
   Image as ImageIcon,
+  LayoutTemplate,
+  Maximize,
+  Plus,
   Save,
+  Scaling,
   Square as SquareIcon,
   Trash2,
   Type as TypeIcon,
@@ -17,8 +25,23 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { getDesignUploadPaths, registerDesignExport, saveDesignCanvas } from "./actions";
+import {
+  addCarouselSlide,
+  getDesignUploadPaths,
+  registerDesignExport,
+  resizeDesign,
+  saveAsTemplate,
+  saveDesignCanvas,
+} from "./actions";
 
 /** IHP brand kit, available as one-click swatches in the editor. */
 const BRAND_SWATCHES = [
@@ -44,6 +67,12 @@ export interface AssetChoice {
   origin: "uploaded" | "ai_generated";
 }
 
+export interface SlideChoice {
+  id: string;
+  name: string;
+  index: number;
+}
+
 interface LayerInfo {
   index: number;
   label: string;
@@ -57,17 +86,22 @@ export function DesignEditor({
   height,
   initialCanvas,
   assets,
+  slides,
 }: {
   designId: string;
   width: number;
   height: number;
   initialCanvas: unknown;
   assets: AssetChoice[];
+  slides: SlideChoice[];
 }) {
+  const router = useRouter();
   const canvasElRef = useRef<HTMLCanvasElement | null>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
   const [layers, setLayers] = useState<LayerInfo[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isBusy, setIsBusy] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [selectedFill, setSelectedFill] = useState("#622249");
 
   const refreshLayers = useCallback(() => {
@@ -238,6 +272,57 @@ export function DesignEditor({
     refreshLayers();
   };
 
+  /**
+   * Masks the selected layer to a shape. Fabric clips against the object's
+   * own centre, so an absolutely positioned clipPath is not needed and the
+   * mask travels with the layer when it is moved or scaled.
+   */
+  const applyMask = (shape: "circle" | "rounded" | "none") =>
+    withCanvas((canvas) => {
+      const active = canvas.getActiveObject();
+      if (!active) {
+        toast.error("Select a layer to mask.");
+        return;
+      }
+      if (shape === "none") {
+        active.clipPath = undefined;
+        return;
+      }
+      // Intrinsic size: the clip path lives in the object's own space, so it
+      // must ignore the scale applied to the layer.
+      const w = active.width ?? 0;
+      const h = active.height ?? 0;
+      active.clipPath =
+        shape === "circle"
+          ? new fabric.Circle({ radius: Math.min(w, h) / 2, originX: "center", originY: "center" })
+          : new fabric.Rect({
+              width: w,
+              height: h,
+              rx: Math.min(w, h) * 0.08,
+              ry: Math.min(w, h) * 0.08,
+              originX: "center",
+              originY: "center",
+            });
+    });
+
+  /** Scales the selected layer to cover the frame, the usual move for a background. */
+  const fillFrame = () =>
+    withCanvas((canvas) => {
+      const active = canvas.getActiveObject();
+      if (!active) {
+        toast.error("Select a layer to fill the frame.");
+        return;
+      }
+      const scale = Math.max(width / (active.width ?? width), height / (active.height ?? height));
+      active.set({
+        scaleX: scale,
+        scaleY: scale,
+        left: (width - (active.width ?? 0) * scale) / 2,
+        top: (height - (active.height ?? 0) * scale) / 2,
+      });
+      active.setCoords();
+    });
+
   const moveLayer = (direction: "up" | "down") =>
     withCanvas((canvas) => {
       const active = canvas.getActiveObject();
@@ -325,6 +410,56 @@ export function DesignEditor({
     }
   };
 
+  /**
+   * Resizing copies the saved canvas, so unsaved edits would be lost. Save
+   * first, then resize, rather than quietly producing a stale copy.
+   */
+  const resizeInto = async (format: DesignFormat) => {
+    setIsBusy(true);
+    try {
+      await save();
+      const result = await resizeDesign(designId, format);
+      if (result.error) toast.error(result.error);
+      else if (result.id) {
+        toast.success(`Created the ${format} version.`);
+        router.push(`/creative-studio/${result.id}`);
+      }
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const storeAsTemplate = async (name: string, category: string) => {
+    setIsBusy(true);
+    try {
+      await save();
+      const result = await saveAsTemplate(designId, name, category || null);
+      if (result.error) toast.error(result.error);
+      else {
+        toast.success("Saved to the shared template library.");
+        setTemplateOpen(false);
+      }
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const appendSlide = async () => {
+    setIsBusy(true);
+    try {
+      const result = await addCarouselSlide(designId);
+      if (result.error) toast.error(result.error);
+      else if (result.id) {
+        toast.success("Slide added.");
+        router.push(`/creative-studio/${result.id}`);
+      }
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const disabled = isSaving || isBusy;
+
   return (
     <div className="grid gap-4 lg:grid-cols-[260px_1fr_220px]">
       {/* Tools */}
@@ -337,6 +472,24 @@ export function DesignEditor({
             </Button>
             <Button size="sm" variant="outline" onClick={addRect}>
               <SquareIcon className="mr-1 size-3.5" /> Shape
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Mask and fit</Label>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => applyMask("circle")}>
+              <CircleIcon className="mr-1 size-3.5" /> Circle
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => applyMask("rounded")}>
+              <Crop className="mr-1 size-3.5" /> Rounded
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => applyMask("none")}>
+              Clear mask
+            </Button>
+            <Button size="sm" variant="outline" onClick={fillFrame}>
+              <Maximize className="mr-1 size-3.5" /> Fill frame
             </Button>
           </div>
         </div>
@@ -418,12 +571,51 @@ export function DesignEditor({
       {/* Canvas */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={save} disabled={isSaving}>
+          <Button size="sm" onClick={save} disabled={disabled}>
             <Save className="mr-1 size-3.5" /> {isSaving ? "Saving..." : "Save"}
           </Button>
-          <Button size="sm" variant="outline" onClick={exportPng} disabled={isSaving}>
+          <Button size="sm" variant="outline" onClick={exportPng} disabled={disabled}>
             <Download className="mr-1 size-3.5" /> Export PNG
           </Button>
+          <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
+            <DialogTrigger
+              render={
+                <Button size="sm" variant="outline" disabled={disabled}>
+                  <LayoutTemplate className="mr-1 size-3.5" /> Save as template
+                </Button>
+              }
+            />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Save as template</DialogTitle>
+                <DialogDescription>
+                  Templates sit in a shared library with no client attached, so only the layout travels. Whoever
+                  starts from it supplies that client&apos;s own copy and imagery.
+                </DialogDescription>
+              </DialogHeader>
+              <form
+                action={async (formData) => {
+                  await storeAsTemplate(
+                    String(formData.get("templateName") ?? "").trim(),
+                    String(formData.get("category") ?? "").trim(),
+                  );
+                }}
+                className="space-y-3"
+              >
+                <div className="space-y-1.5">
+                  <Label htmlFor="tpl-name">Template name</Label>
+                  <Input id="tpl-name" name="templateName" required placeholder="e.g. Offer announcement - square" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="tpl-category">Category (optional)</Label>
+                  <Input id="tpl-category" name="category" placeholder="e.g. Offer, Testimonial, Event" />
+                </div>
+                <Button type="submit" className="w-full" disabled={disabled}>
+                  Save template
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
           <Button size="sm" variant="ghost" onClick={duplicateSelected}>
             <Copy className="mr-1 size-3.5" /> Duplicate
           </Button>
@@ -437,9 +629,51 @@ export function DesignEditor({
             <Trash2 className="mr-1 size-3.5" /> Delete
           </Button>
         </div>
+
+        {/* One design, every placement. Saves first so the copy is current. */}
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed p-2">
+          <span className="flex items-center text-xs font-medium text-muted-foreground">
+            <Scaling className="mr-1 size-3.5" /> Resize into
+          </span>
+          {(Object.keys(DESIGN_FORMATS) as DesignFormat[]).map((format) => (
+            <Button
+              key={format}
+              size="sm"
+              variant="ghost"
+              disabled={disabled}
+              onClick={() => resizeInto(format)}
+              title={DESIGN_FORMATS[format].label}
+              className="capitalize"
+            >
+              {format}
+            </Button>
+          ))}
+        </div>
+
         <div className="flex justify-center rounded-lg border bg-muted/30 p-4">
           <canvas ref={canvasElRef} className="max-w-full rounded shadow-sm" />
         </div>
+
+        {slides.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Carousel</span>
+            {slides.map((slide) => (
+              <Button
+                key={slide.id}
+                size="sm"
+                variant={slide.id === designId ? "default" : "outline"}
+                onClick={() => router.push(`/creative-studio/${slide.id}`)}
+                title={slide.name}
+              >
+                {slide.index + 1}
+              </Button>
+            ))}
+            <Button size="sm" variant="ghost" onClick={appendSlide} disabled={disabled}>
+              <Plus className="mr-1 size-3.5" /> Add slide
+            </Button>
+          </div>
+        ) : null}
+
         <p className="text-xs text-muted-foreground">
           {width} x {height} pixels. Double-click text to edit it. Drag the handles to resize and rotate.
         </p>

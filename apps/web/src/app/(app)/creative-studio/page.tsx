@@ -21,7 +21,9 @@ export default async function CreativeStudioPage() {
       .limit(48),
     supabase
       .from("designs")
-      .select("id, name, format, width, height, status, updated_at, thumbnail_path, client:clients(name)")
+      .select(
+        "id, name, format, width, height, status, updated_at, thumbnail_path, is_template, template_category, carousel_group_id, slide_index, client:clients(name)",
+      )
       .eq("organisation_id", session.organisationId)
       .is("deleted_at", null)
       .order("updated_at", { ascending: false }),
@@ -38,6 +40,18 @@ export default async function CreativeStudioPage() {
     .filter((a) => a.origin === "ai_generated")
     .reduce((sum, a) => sum + Number(a.generation_cost ?? 0), 0);
 
+  const templates = (designs ?? []).filter((d) => d.is_template);
+
+  // A carousel shows as one card at its first slide, not as five near-identical
+  // tiles, with the slide count on the badge.
+  const slideCounts = new Map<string, number>();
+  for (const d of designs ?? []) {
+    if (d.carousel_group_id) slideCounts.set(d.carousel_group_id, (slideCounts.get(d.carousel_group_id) ?? 0) + 1);
+  }
+  const clientDesigns = (designs ?? []).filter(
+    (d) => !d.is_template && (!d.carousel_group_id || (d.slide_index ?? 0) === 0),
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -49,26 +63,27 @@ export default async function CreativeStudioPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <NewDesignDialog clients={clients ?? []} />
+          <NewDesignDialog clients={clients ?? []} templates={templates.map((t) => ({ id: t.id, name: t.name }))} />
           <UploadAssetDialog clients={clients ?? []} />
         </div>
       </div>
 
       <Tabs defaultValue="designs">
         <TabsList>
-          <TabsTrigger value="designs">Designs ({(designs ?? []).length})</TabsTrigger>
+          <TabsTrigger value="designs">Designs ({clientDesigns.length})</TabsTrigger>
+          <TabsTrigger value="templates">Templates ({templates.length})</TabsTrigger>
           <TabsTrigger value="generate">Generate</TabsTrigger>
           <TabsTrigger value="assets">Assets ({(assets ?? []).length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="designs" className="pt-4">
-          {!designs || designs.length === 0 ? (
+          {clientDesigns.length === 0 ? (
             <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
               No designs yet. Create one to open the canvas.
             </p>
           ) : (
             <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {designs.map((d) => (
+              {clientDesigns.map((d) => (
                 <Link key={d.id} href={`/creative-studio/${d.id}`}>
                   <Card className="h-full transition-colors hover:border-brand/60">
                     <CardContent className="p-3">
@@ -80,9 +95,48 @@ export default async function CreativeStudioPage() {
                           <span className="text-xs text-muted-foreground">No preview yet</span>
                         )}
                       </div>
-                      <p className="truncate text-sm font-medium">{d.name}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="truncate text-sm font-medium">{d.name}</p>
+                        {d.carousel_group_id ? (
+                          <Badge variant="secondary" className="shrink-0 text-[10px]">
+                            {slideCounts.get(d.carousel_group_id)} slides
+                          </Badge>
+                        ) : null}
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         {(d.client as unknown as { name: string } | null)?.name} · {d.width}x{d.height}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="templates" className="pt-4">
+          {templates.length === 0 ? (
+            <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+              No templates yet. Open a design you like and choose Save as template. Templates carry the layout only,
+              never another client&apos;s copy or imagery.
+            </p>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {templates.map((t) => (
+                <Link key={t.id} href={`/creative-studio/${t.id}`}>
+                  <Card className="h-full transition-colors hover:border-brand/60">
+                    <CardContent className="p-3">
+                      <div className="mb-2 flex aspect-square items-center justify-center overflow-hidden rounded-md border bg-muted/40">
+                        {t.thumbnail_path && signed[t.thumbnail_path] ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={signed[t.thumbnail_path]} alt={t.name} className="size-full object-contain" />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No preview yet</span>
+                        )}
+                      </div>
+                      <p className="truncate text-sm font-medium">{t.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t.template_category ?? "Uncategorised"} · {t.width}x{t.height}
                       </p>
                     </CardContent>
                   </Card>

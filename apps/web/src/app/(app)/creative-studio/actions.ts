@@ -4,6 +4,14 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { generateOpenAiImage, type ImageQuality, type ImageSize } from "@ihp/ai-router";
 import { requirePermission, writeAuditLog } from "@ihp/database";
+import type { Json } from "@ihp/database/types.gen";
+import {
+  clampSlideCount,
+  DESIGN_FORMATS,
+  MAX_CAROUSEL_SLIDES,
+  resizeCanvasJson,
+  type DesignFormat,
+} from "@ihp/types";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { serverEnv } from "@/lib/env/server";
@@ -228,32 +236,53 @@ export async function createDesign(formData: FormData): Promise<void> {
 
   const clientId = str(formData, "clientId");
   const name = str(formData, "name");
-  const format = (str(formData, "format") ?? "square") as "square" | "portrait" | "story" | "landscape";
+  const format = (str(formData, "format") ?? "square") as DesignFormat;
+  const templateId = str(formData, "templateId");
+  const slideCount = str(formData, "slideCount");
   if (!clientId || !name) throw new Error("Client and design name are required");
 
   await requirePermission(supabase, session.organisationId, "content", "create", clientId);
 
-  const dimensions: Record<string, { width: number; height: number }> = {
-    square: { width: 1080, height: 1080 },
-    portrait: { width: 1080, height: 1350 },
-    story: { width: 1080, height: 1920 },
-    landscape: { width: 1200, height: 628 },
-  };
-  const size = dimensions[format] ?? dimensions.square!;
+  const size = DESIGN_FORMATS[format] ?? DESIGN_FORMATS.square;
 
-  const { data: design, error } = await supabase
-    .from("designs")
-    .insert({
-      organisation_id: session.organisationId,
-      client_id: clientId,
-      name,
-      format,
-      width: size.width,
-      height: size.height,
-      created_by: session.userId,
-    })
-    .select("id")
-    .single();
+  // Starting from a template copies its layers, resized if the template was
+  // drawn for a different placement.
+  let canvasJson: Json = {};
+  if (templateId) {
+    const { data: template, error: templateError } = await supabase
+      .from("designs")
+      .select("canvas_json, width, height")
+      .eq("id", templateId)
+      .eq("is_template", true)
+      .single();
+    if (templateError) throw new Error(templateError.message);
+    canvasJson = resizeCanvasJson(
+      template.canvas_json,
+      { width: template.width, height: template.height },
+      size,
+    ) as Json;
+  }
+
+  // A carousel is a set of sibling slides sharing a group id, so each slide
+  // is an ordinary design and reuses the editor and export path unchanged.
+  const slides = slideCount ? clampSlideCount(Number(slideCount)) : 1;
+  const carouselGroupId = slides > 1 ? randomUUID() : null;
+
+  const rows = Array.from({ length: slides }, (_, index) => ({
+    organisation_id: session.organisationId,
+    client_id: clientId,
+    name: slides > 1 ? `${name} - ${index + 1}` : name,
+    format,
+    width: size.width,
+    height: size.height,
+    canvas_json: canvasJson,
+    carousel_group_id: carouselGroupId,
+    slide_index: carouselGroupId ? index : null,
+    source_design_id: templateId,
+    created_by: session.userId,
+  }));
+
+  const { data: created, error } = await supabase.from("designs").insert(rows).select("id");
   if (error) throw new Error(error.message);
 
   await writeAuditLog(supabase, {
@@ -261,12 +290,199 @@ export async function createDesign(formData: FormData): Promise<void> {
     actorUserId: session.userId,
     action: "create",
     resource: "designs",
-    resourceId: design.id,
+    resourceId: created[0]!.id,
     clientId,
-    metadata: { name, format },
+    metadata: { name, format, slides, fromTemplate: templateId ?? null },
   });
 
   revalidatePath("/creative-studio");
+}
+
+/**
+ * Copies a design into another placement, scaling the layers to fit. This is
+ * the point of the studio for ads work: draw the square once, then take the
+ * story and the landscape banner from it instead of rebuilding both.
+ */
+export async function resizeDesign(designId: string, format: DesignFormat): Promise<{ error?: string; id?: string }> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+
+  const { data: design, error: fetchError } = await supabase
+    .from("designs")
+    .select("id, name, client_id, width, height, canvas_json, carousel_group_id")
+    .eq("id", designId)
+    .single();
+  if (fetchError) return { error: fetchError.message };
+
+  try {
+    await requirePermission(supabase, session.organisationId, "content", "create", design.client_id);
+  } catch {
+    return { error: "You do not have permission to create designs for this client." };
+  }
+
+  const target = DESIGN_FORMATS[format];
+  if (!target) return { error: "Unknown format." };
+
+  const { data: created, error } = await supabase
+    .from("designs")
+    .insert({
+      organisation_id: session.organisationId,
+      client_id: design.client_id,
+      name: `${design.name} - ${format}`,
+      format,
+      width: target.width,
+      height: target.height,
+      canvas_json: resizeCanvasJson(
+        design.canvas_json,
+        { width: design.width, height: design.height },
+        target,
+      ) as Json,
+      source_design_id: design.id,
+      created_by: session.userId,
+    })
+    .select("id")
+    .single();
+  if (error) return { error: error.message };
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: "create",
+    resource: "designs",
+    resourceId: created.id,
+    clientId: design.client_id,
+    metadata: { resizedFrom: design.id, format },
+  });
+
+  revalidatePath("/creative-studio");
+  return { id: created.id };
+}
+
+/**
+ * Saves a design's layers into the shared template library. Templates carry
+ * no client, so a layout built for one client is not silently reused as
+ * another client's work: only the arrangement travels, and the person
+ * starting from it fills in that client's own copy and imagery.
+ */
+export async function saveAsTemplate(
+  designId: string,
+  templateName: string,
+  category: string | null,
+): Promise<{ error?: string; id?: string }> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+
+  const name = templateName.trim();
+  if (!name) return { error: "Give the template a name." };
+
+  const { data: design, error: fetchError } = await supabase
+    .from("designs")
+    .select("id, client_id, format, width, height, canvas_json")
+    .eq("id", designId)
+    .single();
+  if (fetchError) return { error: fetchError.message };
+
+  try {
+    await requirePermission(supabase, session.organisationId, "content", "read", design.client_id);
+  } catch {
+    return { error: "You do not have permission to use this design." };
+  }
+
+  const { data: created, error } = await supabase
+    .from("designs")
+    .insert({
+      organisation_id: session.organisationId,
+      client_id: null,
+      name,
+      format: design.format,
+      width: design.width,
+      height: design.height,
+      canvas_json: design.canvas_json,
+      is_template: true,
+      template_category: category?.trim() || null,
+      source_design_id: design.id,
+      created_by: session.userId,
+    })
+    .select("id")
+    .single();
+  if (error) return { error: error.message };
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: "create",
+    resource: "designs",
+    resourceId: created.id,
+    metadata: { template: true, name, fromDesign: design.id },
+  });
+
+  revalidatePath("/creative-studio");
+  return { id: created.id };
+}
+
+/** Adds a slide to the end of an existing carousel. */
+export async function addCarouselSlide(designId: string): Promise<{ error?: string; id?: string }> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+
+  const { data: design, error: fetchError } = await supabase
+    .from("designs")
+    .select("id, name, client_id, format, width, height, carousel_group_id")
+    .eq("id", designId)
+    .single();
+  if (fetchError) return { error: fetchError.message };
+  if (!design.carousel_group_id) return { error: "This design is not part of a carousel." };
+
+  try {
+    await requirePermission(supabase, session.organisationId, "content", "create", design.client_id);
+  } catch {
+    return { error: "You do not have permission to create designs for this client." };
+  }
+
+  const { data: siblings, error: siblingError } = await supabase
+    .from("designs")
+    .select("slide_index")
+    .eq("carousel_group_id", design.carousel_group_id)
+    .is("deleted_at", null)
+    .order("slide_index", { ascending: false })
+    .limit(1);
+  if (siblingError) return { error: siblingError.message };
+
+  const nextIndex = (siblings[0]?.slide_index ?? -1) + 1;
+  if (nextIndex >= MAX_CAROUSEL_SLIDES) {
+    return { error: `A carousel holds at most ${MAX_CAROUSEL_SLIDES} slides.` };
+  }
+
+  const baseName = design.name.replace(/ - \d+$/, "");
+  const { data: created, error } = await supabase
+    .from("designs")
+    .insert({
+      organisation_id: session.organisationId,
+      client_id: design.client_id,
+      name: `${baseName} - ${nextIndex + 1}`,
+      format: design.format,
+      width: design.width,
+      height: design.height,
+      carousel_group_id: design.carousel_group_id,
+      slide_index: nextIndex,
+      created_by: session.userId,
+    })
+    .select("id")
+    .single();
+  if (error) return { error: error.message };
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: "create",
+    resource: "designs",
+    resourceId: created.id,
+    clientId: design.client_id,
+    metadata: { carouselGroupId: design.carousel_group_id, slideIndex: nextIndex },
+  });
+
+  revalidatePath(`/creative-studio/${designId}`);
+  return { id: created.id };
 }
 
 /**

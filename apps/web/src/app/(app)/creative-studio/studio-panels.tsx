@@ -154,7 +154,18 @@ export function ReviewAssetButton({ assetId }: { assetId: string }) {
   );
 }
 
-export function NewDesignDialog({ clients }: { clients: ClientChoice[] }) {
+export interface TemplateChoice {
+  id: string;
+  name: string;
+}
+
+export function NewDesignDialog({
+  clients,
+  templates,
+}: {
+  clients: ClientChoice[];
+  templates: TemplateChoice[];
+}) {
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -162,7 +173,9 @@ export function NewDesignDialog({ clients }: { clients: ClientChoice[] }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New design</DialogTitle>
-          <DialogDescription>Pick the placement size. You can duplicate into other sizes later.</DialogDescription>
+          <DialogDescription>
+            Pick the placement size. You can resize into any other placement from inside the editor.
+          </DialogDescription>
         </DialogHeader>
         <form
           action={async (formData) => {
@@ -195,8 +208,36 @@ export function NewDesignDialog({ clients }: { clients: ClientChoice[] }) {
               <option value="landscape">Landscape 1200 x 628</option>
             </select>
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="nd-template">Start from</Label>
+              <select
+                id="nd-template"
+                name="templateId"
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Blank canvas</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nd-slides">Slides</Label>
+              <select id="nd-slides" name="slideCount" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                <option value="">Single frame</option>
+                {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                  <option key={n} value={n}>
+                    Carousel, {n} slides
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <Button type="submit" className="w-full">
-            Create and open
+            Create
           </Button>
         </form>
       </DialogContent>

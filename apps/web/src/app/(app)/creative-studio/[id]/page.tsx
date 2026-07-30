@@ -13,7 +13,7 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
 
   const { data: design } = await supabase
     .from("designs")
-    .select("id, name, width, height, canvas_json, client_id, client:clients(name)")
+    .select("id, name, width, height, canvas_json, client_id, is_template, carousel_group_id, client:clients(name)")
     .eq("organisation_id", session.organisationId)
     .eq("id", id)
     .is("deleted_at", null)
@@ -23,15 +23,28 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
 
   // Only reviewed assets are offered to the canvas, so unvetted AI imagery
   // cannot slip into client work.
-  const { data: assets } = await supabase
+  let assetQuery = supabase
     .from("creative_assets")
     .select("id, name, storage_path, origin")
     .eq("organisation_id", session.organisationId)
     .not("reviewed_at", "is", null)
-    .is("deleted_at", null)
-    .or(`client_id.eq.${design.client_id},client_id.is.null`)
-    .order("created_at", { ascending: false })
-    .limit(40);
+    .is("deleted_at", null);
+  // A template belongs to no client, so it only ever sees the shared library.
+  assetQuery = design.client_id
+    ? assetQuery.or(`client_id.eq.${design.client_id},client_id.is.null`)
+    : assetQuery.is("client_id", null);
+
+  const { data: assets } = await assetQuery.order("created_at", { ascending: false }).limit(40);
+
+  // Sibling slides, so the editor can offer a strip to move between them.
+  const { data: slides } = design.carousel_group_id
+    ? await supabase
+        .from("designs")
+        .select("id, name, slide_index")
+        .eq("carousel_group_id", design.carousel_group_id)
+        .is("deleted_at", null)
+        .order("slide_index", { ascending: true })
+    : { data: null };
 
   const signed = await signCreativePaths((assets ?? []).map((a) => a.storage_path));
   const assetChoices: AssetChoice[] = (assets ?? [])
@@ -47,7 +60,9 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
           </Link>
           <h1 className="font-heading text-2xl">{design.name}</h1>
           <p className="text-sm text-muted-foreground">
-            {(design.client as unknown as { name: string } | null)?.name}
+            {design.is_template
+              ? "Shared template"
+              : (design.client as unknown as { name: string } | null)?.name}
           </p>
         </div>
       </div>
@@ -58,6 +73,7 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
         height={design.height}
         initialCanvas={design.canvas_json}
         assets={assetChoices}
+        slides={(slides ?? []).map((s) => ({ id: s.id, name: s.name, index: s.slide_index ?? 0 }))}
       />
     </div>
   );

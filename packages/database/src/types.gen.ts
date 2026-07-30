@@ -1376,7 +1376,8 @@ export interface Database {
         Row: {
           id: string;
           organisation_id: string;
-          client_id: string;
+          /* Null only for shared templates. Client work always names its client. */
+          client_id: string | null;
           name: string;
           format: "square" | "portrait" | "story" | "landscape" | "custom";
           width: number;
@@ -1389,6 +1390,10 @@ export interface Database {
           campaign_id: string | null;
           status: "draft" | "in_review" | "approved" | "archived";
           is_template: boolean;
+          carousel_group_id: string | null;
+          slide_index: number | null;
+          template_category: string | null;
+          source_design_id: string | null;
           version: number;
           created_by: string | null;
           created_at: string;
@@ -1397,7 +1402,6 @@ export interface Database {
         };
         Insert: Partial<Database["public"]["Tables"]["designs"]["Row"]> & {
           organisation_id: string;
-          client_id: string;
           name: string;
         };
         Update: Partial<Database["public"]["Tables"]["designs"]["Row"]>;
