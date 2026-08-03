@@ -14,3 +14,4 @@ export * from "./seo-metrics";
 export * from "./email-flow";
 export * from "./content-calendar";
 export * from "./pitch-tracking";
+export * from "./event-run-of-show";

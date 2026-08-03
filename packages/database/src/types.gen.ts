@@ -1382,6 +1382,75 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["creative_assets"]["Row"]>;
         Relationships: [];
       };
+      event_segments: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          event_id: string;
+          /* Offset from the event start, not a timestamp. */
+          starts_after_minutes: number;
+          duration_minutes: number;
+          title: string;
+          owner_name: string | null;
+          owner_id: string | null;
+          location: string | null;
+          notes: string | null;
+          completed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["event_segments"]["Row"]> & {
+          organisation_id: string;
+          event_id: string;
+          title: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_segments"]["Row"]>;
+        Relationships: [];
+      };
+      event_sponsors: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          event_id: string;
+          name: string;
+          tier: "title" | "presenting" | "supporting" | "in_kind" | "media";
+          contact_name: string | null;
+          contact_email: string | null;
+          cash_amount: number;
+          in_kind_description: string | null;
+          status: "prospect" | "pitched" | "committed" | "paid" | "declined";
+          invoiced_at: string | null;
+          paid_at: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["event_sponsors"]["Row"]> & {
+          organisation_id: string;
+          event_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_sponsors"]["Row"]>;
+        Relationships: [];
+      };
+      event_sponsor_deliverables: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          sponsor_id: string;
+          description: string;
+          due_date: string | null;
+          delivered_at: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["event_sponsor_deliverables"]["Row"]> & {
+          organisation_id: string;
+          sponsor_id: string;
+          description: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_sponsor_deliverables"]["Row"]>;
+        Relationships: [];
+      };
       email_flows: {
         Row: {
           id: string;

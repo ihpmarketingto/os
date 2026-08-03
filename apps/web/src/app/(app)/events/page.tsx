@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireSession } from "@/lib/auth/session";
@@ -51,7 +52,9 @@ export default async function EventsPage() {
                 {events.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell>
-                      <p className="font-medium">{e.name}</p>
+                      <Link href={`/events/${e.id}`} className="font-medium hover:underline">
+                        {e.name}
+                      </Link>
                       {e.venue ? <p className="text-xs text-muted-foreground">{e.venue}</p> : null}
                     </TableCell>
                     <TableCell>{(e.client as unknown as { name: string } | null)?.name ?? "Agency"}</TableCell>
