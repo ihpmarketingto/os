@@ -736,6 +736,8 @@ export interface Database {
           sent_at: string | null;
           decided_at: string | null;
           notes: string | null;
+          sent_to_email: string | null;
+          sent_by: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -1380,6 +1382,28 @@ export interface Database {
           storage_path: string;
         };
         Update: Partial<Database["public"]["Tables"]["creative_assets"]["Row"]>;
+        Relationships: [];
+      };
+      proposal_line_items: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          proposal_id: string;
+          service_package_id: string | null;
+          description: string;
+          /* Snapshotted from the package, never read back through the reference. */
+          cadence: "one_time" | "monthly" | "quarterly";
+          quantity: number;
+          unit_price: number;
+          position: number;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["proposal_line_items"]["Row"]> & {
+          organisation_id: string;
+          proposal_id: string;
+          description: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["proposal_line_items"]["Row"]>;
         Relationships: [];
       };
       event_segments: {

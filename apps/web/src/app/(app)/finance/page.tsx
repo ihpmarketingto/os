@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AlertTriangle, CalendarClock } from "lucide-react";
 import {
   checkScopeCreep,
@@ -13,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireSession } from "@/lib/auth/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { NewContractDialog, NewExpenseDialog, NewInvoiceDialog, NewRetainerDialog } from "./new-record-dialogs";
+import { NewContractDialog, NewExpenseDialog, NewInvoiceDialog, NewProposalDialog, NewRetainerDialog } from "./new-record-dialogs";
 import { InvoiceStatusSelect, RecordPaymentDialog } from "./invoice-actions";
 
 const cad = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
@@ -349,23 +350,34 @@ export default async function FinancePage() {
           )}
         </TabsContent>
 
-        <TabsContent value="proposals" className="pt-4">
+        <TabsContent value="proposals" className="space-y-4 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Amounts are the first invoice: one-time work plus one month, never an annualised figure that inflates
+              the pipeline.
+            </p>
+            <NewProposalDialog clients={clients ?? []} />
+          </div>
           {(proposals ?? []).length === 0 ? (
-            <EmptyNote text="No proposals yet. Proposals attach to deals in CRM; the builder UI arrives with the proposal-template work." />
+            <EmptyNote text="No proposals yet. Create one, price it from the service catalogue, then record it as sent." />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Client</TableHead>
-                  <TableHead>Amount</TableHead>
+                  <TableHead>First invoice</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(proposals ?? []).map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.title}</TableCell>
+                    <TableCell>
+                      <Link href={`/finance/proposals/${p.id}`} className="font-medium hover:underline">
+                        {p.title}
+                      </Link>
+                    </TableCell>
                     <TableCell>{(p.client as unknown as { name: string } | null)?.name ?? "—"}</TableCell>
                     <TableCell>{p.amount ? cad.format(Number(p.amount)) : "—"}</TableCell>
                     <TableCell className="capitalize">{p.status}</TableCell>

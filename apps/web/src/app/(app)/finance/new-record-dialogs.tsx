@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { createContract, createExpense, createInvoice, createRetainer } from "./actions";
+import { createProposal } from "./proposal-actions";
 
 export interface ClientOption {
   id: string;
@@ -233,5 +236,62 @@ export function NewExpenseDialog({ clients }: { clients: ClientOption[] }) {
         <Input id="expense-vendor" name="vendor" />
       </div>
     </FormDialog>
+  );
+}
+
+export function NewProposalDialog({ clients }: { clients: ClientOption[] }) {
+  const [open, setOpen] = useState(false);
+  const router = useRouter();
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button size="sm"><Plus className="mr-1 size-3.5" /> New proposal</Button>} />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>New proposal</DialogTitle>
+          <DialogDescription>
+            Create the shell, then price it from the service catalogue so the quote and the delivery plan describe the
+            same work.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          action={async (formData) => {
+            const result = await createProposal(formData);
+            if (result.error) toast.error(result.error);
+            else if (result.id) {
+              setOpen(false);
+              router.push(`/finance/proposals/${result.id}`);
+            }
+          }}
+          className="space-y-3"
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="np-title">Title</Label>
+            <Input id="np-title" name="title" required placeholder="e.g. Social and paid retainer, Q4" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="np-client">Client</Label>
+            <select id="np-client" name="clientId" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+              <option value="">Select a client</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="np-valid">Valid until</Label>
+            <Input id="np-valid" name="validUntil" type="date" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="np-notes">Notes</Label>
+            <Input id="np-notes" name="notes" />
+          </div>
+          <Button type="submit" className="w-full">
+            Create and price it
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
