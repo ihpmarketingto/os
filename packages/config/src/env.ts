@@ -47,6 +47,14 @@ const optionalIntegrationSchema = z.object({
 
   // Error monitoring
   SENTRY_DSN: z.string().url().optional(),
+
+  /**
+   * Shared secret the scheduled sweep endpoint requires. Optional so the app
+   * still boots without it, but the endpoint refuses to run when it is
+   * missing rather than defaulting to open: an unauthenticated route that
+   * mutates every organisation is not something to fail open on.
+   */
+  CRON_SECRET: z.string().min(16).optional(),
 });
 
 const publicSchema = z.object({

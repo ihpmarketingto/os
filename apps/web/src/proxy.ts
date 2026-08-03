@@ -4,7 +4,20 @@ import { loadServerEnv } from "@ihp/config";
 
 const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/confirm"];
 
+/**
+ * Routes that authenticate themselves rather than by session cookie, so the
+ * cookie check here would only ever redirect a machine caller to a login
+ * page it cannot use. Each one is responsible for its own authorisation and
+ * must fail closed: see /api/cron/sweep, which refuses to run at all when
+ * its shared secret is unset.
+ */
+const SELF_AUTHENTICATING_PATHS = ["/api/cron/"];
+
 export async function proxy(request: NextRequest) {
+  if (SELF_AUTHENTICATING_PATHS.some((path) => request.nextUrl.pathname.startsWith(path))) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const env = loadServerEnv(process.env);
