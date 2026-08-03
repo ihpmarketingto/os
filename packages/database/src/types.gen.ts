@@ -1079,8 +1079,18 @@ export interface Database {
           status: "drafted" | "sent" | "responded" | "declined" | "confirmed";
           sent_at: string | null;
           notes: string | null;
+          follow_up_at: string | null;
+          follow_up_count: number;
+          last_follow_up_at: string | null;
+          placement_url: string | null;
+          placement_published_at: string | null;
+          placement_outlet: string | null;
+          /* Null means unknown, excluded from totals rather than counted as zero. */
+          placement_reach: number | null;
+          angle: string | null;
           created_by: string | null;
           created_at: string;
+          updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["outreach"]["Row"]> & {
           organisation_id: string;
