@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { FileDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -69,7 +72,14 @@ export default async function ReportsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <ReportStatusActions reportId={r.id} status={r.status} />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ReportStatusActions reportId={r.id} status={r.status} />
+                        <Button size="sm" variant="outline" nativeButton={false} render={
+                          <Link href={`/reports/${r.id}/print`} target="_blank" rel="noopener noreferrer">
+                            <FileDown className="mr-1 size-3.5" /> PDF
+                          </Link>
+                        } />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -148,3 +148,34 @@
     @apply font-sans;
   }
 }
+/*
+ * Printable documents. The print route already drops the app shell, so this
+ * only has to handle the page itself: hide the on-screen controls, keep the
+ * brand colours (browsers strip backgrounds by default), and stop sections
+ * splitting across a page break mid-thought.
+ *
+ * @page sits at the top level rather than nested inside the media query.
+ * Nested, Lightning CSS drops the whole block and the print styles silently
+ * never ship.
+ */
+@page {
+  margin: 18mm 16mm;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .report-print {
+    max-width: none;
+    padding: 0;
+    color: #21242c;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .break-inside-avoid {
+    break-inside: avoid;
+  }
+}

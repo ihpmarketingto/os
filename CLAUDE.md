@@ -117,6 +117,11 @@ framework) is complete. Later phases build on it without rewriting it.
   secrets) imports the `server-only` package as its first line. Public env
   vars go through `src/lib/env/public.ts`; everything else through
   `src/lib/env/server.ts`.
+- Tailwind v4 compiles CSS with Lightning CSS, which **silently drops** rules
+  it cannot parse rather than failing the build. An `@page` nested inside
+  `@media print` took the whole print block with it. After editing
+  `globals.css` by hand, fetch the served stylesheet and grep for your
+  selector instead of trusting that the source file is enough.
 
 ## Testing rules
 
