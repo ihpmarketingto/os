@@ -1372,6 +1372,73 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["creative_assets"]["Row"]>;
         Relationships: [];
       };
+      email_flows: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          name: string;
+          flow_type:
+            | "welcome"
+            | "nurture"
+            | "win_back"
+            | "post_purchase"
+            | "abandoned_cart"
+            | "re_engagement"
+            | "booking_reminder"
+            | "other";
+          status: "draft" | "live" | "paused" | "archived";
+          trigger_description: string | null;
+          goal: string | null;
+          platform: string | null;
+          external_ref: string | null;
+          entered: number;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["email_flows"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["email_flows"]["Row"]>;
+        Relationships: [];
+      };
+      email_flow_steps: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          flow_id: string;
+          step_index: number;
+          name: string;
+          channel: "email" | "sms";
+          /* Wait since the previous step, not since flow entry. */
+          delay_hours: number;
+          subject: string | null;
+          purpose: string | null;
+          stats_period_start: string | null;
+          stats_period_end: string | null;
+          sent: number;
+          delivered: number;
+          opens: number;
+          clicks: number;
+          unsubscribes: number;
+          conversions: number;
+          revenue: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["email_flow_steps"]["Row"]> & {
+          organisation_id: string;
+          flow_id: string;
+          step_index: number;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["email_flow_steps"]["Row"]>;
+        Relationships: [];
+      };
       seo_keywords: {
         Row: {
           id: string;

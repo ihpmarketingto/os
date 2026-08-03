@@ -142,3 +142,11 @@ framework) is complete. Later phases build on it without rewriting it.
 - Migrations are additive and ordered (`supabase/migrations/000N_*.sql`).
   Don't edit a migration that may have already run somewhere — write a new
   one.
+- `DATABASE_URL` points at the **connection pooler**
+  (`aws-1-ca-central-1.pooler.supabase.com:5432`, user
+  `postgres.<project-ref>`), not at `db.<project-ref>.supabase.co`. The
+  direct host is IPv6-only, so on any network without IPv6 egress it fails
+  with `getaddrinfo ENOTFOUND` even though the REST API keeps working over
+  IPv4 — which makes it look like the project is down when it isn't. Use
+  port 5432 (session mode) for migrations; 6543 is transaction mode and
+  doesn't hold prepared statements across a DDL batch.
