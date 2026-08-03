@@ -12,3 +12,4 @@ export * from "./design-resize";
 export * from "./booking-metrics";
 export * from "./seo-metrics";
 export * from "./email-flow";
+export * from "./content-calendar";
