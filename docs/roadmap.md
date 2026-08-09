@@ -1,5 +1,9 @@
 # IHP OS — build roadmap and phase status
 
+> Related docs: [`build-spec.md`](build-spec.md) is the original master
+> specification; [`phases/`](phases/) holds the seven phase prompts it was
+> split into. This file tracks what has actually been built against them.
+
 ## Phase 0 — Foundation (complete)
 
 **What was built**
