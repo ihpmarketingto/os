@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { computeChannelSummary } from "@ihp/types";
+import { computeChannelSummary, renderKnowledgeContext, selectKnowledgeForContext } from "@ihp/types";
 import { configuredProviders, executeChat, selectProvider, AiRoutingError, type AiTaskType } from "@ihp/ai-router";
 import { hasPermission, requirePermission, writeAuditLog } from "@ihp/database";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -145,6 +145,38 @@ export async function runDraft(_prev: DraftResult, formData: FormData): Promise<
           .limit(5),
       ]);
 
+    /*
+     * IHP's own material. Fetched with the client filter applied in the
+     * query, then passed through selectKnowledgeForContext, which is the
+     * function that enforces the isolation rule and is tested against
+     * exactly this leak. Both layers are deliberate: the query narrows what
+     * comes back, the selector guarantees what goes out.
+     */
+    const { data: knowledgeRows } = await supabase
+      .from("knowledge_entries")
+      .select("id, client_id, kind, title, body, summary, tags, confidentiality, status, review_due_on, updated_at")
+      .eq("organisation_id", session.organisationId)
+      .eq("status", "active")
+      .is("deleted_at", null)
+      .or(`client_id.is.null,client_id.eq.${clientId}`);
+
+    const knowledge = selectKnowledgeForContext(
+      (knowledgeRows ?? []).map((k) => ({
+        id: k.id,
+        clientId: k.client_id,
+        kind: k.kind,
+        title: k.title,
+        body: k.body,
+        summary: k.summary,
+        tags: k.tags,
+        confidentiality: k.confidentiality,
+        status: k.status,
+        reviewDueOn: k.review_due_on,
+        updatedAt: k.updated_at,
+      })),
+      { clientId, query: instruction },
+    );
+
     const citations: Citation[] = [];
     const contextBlocks: string[] = [];
 
@@ -213,6 +245,7 @@ export async function runDraft(_prev: DraftResult, formData: FormData): Promise<
       "",
       "Client context:",
       ...contextBlocks.map((b) => `- ${b}`),
+      ...(knowledge.selected.length > 0 ? ["", renderKnowledgeContext(knowledge.selected)] : []),
     ].join("\n");
 
     let result;
@@ -270,6 +303,23 @@ export async function runDraft(_prev: DraftResult, formData: FormData): Promise<
         // A run without its citation trail violates the audit rules — fail
         // loudly rather than quietly returning an uncited draft.
         throw new Error(`Draft generated but citations could not be recorded: ${citationError.message}`);
+      }
+    }
+
+    // Which knowledge the draft was grounded in, so "where did that claim
+    // come from" is answerable afterwards. Same failure posture as above.
+    if (knowledge.selected.length > 0) {
+      const { error: knowledgeCitationError } = await supabase.from("ai_knowledge_citations").insert(
+        knowledge.selected.map((s) => ({
+          organisation_id: session.organisationId,
+          ai_run_id: run.id,
+          knowledge_entry_id: s.entry.id,
+        })),
+      );
+      if (knowledgeCitationError) {
+        throw new Error(
+          `Draft generated but knowledge citations could not be recorded: ${knowledgeCitationError.message}`,
+        );
       }
     }
 

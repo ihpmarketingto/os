@@ -16,3 +16,4 @@ export * from "./content-calendar";
 export * from "./pitch-tracking";
 export * from "./event-run-of-show";
 export * from "./proposal-math";
+export * from "./knowledge-retrieval";

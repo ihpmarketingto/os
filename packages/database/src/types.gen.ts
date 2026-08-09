@@ -1384,6 +1384,65 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["creative_assets"]["Row"]>;
         Relationships: [];
       };
+      knowledge_entries: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          /* Null means agency-wide. */
+          client_id: string | null;
+          kind:
+            | "sop"
+            | "playbook"
+            | "brand_voice"
+            | "offer"
+            | "icp"
+            | "objection"
+            | "winning_pattern"
+            | "positioning"
+            | "policy"
+            | "faq";
+          title: string;
+          body: string;
+          summary: string | null;
+          tags: string[];
+          /* client_confidential is retrievable only for its own client. */
+          confidentiality: "agency_general" | "client_confidential";
+          status: "draft" | "active" | "archived";
+          source_reference: string | null;
+          review_due_on: string | null;
+          last_reviewed_at: string | null;
+          last_reviewed_by: string | null;
+          supersedes_id: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["knowledge_entries"]["Row"]> & {
+          organisation_id: string;
+          kind: Database["public"]["Tables"]["knowledge_entries"]["Row"]["kind"];
+          title: string;
+          body: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["knowledge_entries"]["Row"]>;
+        Relationships: [];
+      };
+      ai_knowledge_citations: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          ai_run_id: string;
+          knowledge_entry_id: string;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["ai_knowledge_citations"]["Row"]> & {
+          organisation_id: string;
+          ai_run_id: string;
+          knowledge_entry_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["ai_knowledge_citations"]["Row"]>;
+        Relationships: [];
+      };
       proposal_line_items: {
         Row: {
           id: string;
