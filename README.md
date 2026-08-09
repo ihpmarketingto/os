@@ -4,6 +4,12 @@ The agency operating system for IHP Marketing. Multi-tenant, RLS-secured,
 built in phases. See [`docs/roadmap.md`](docs/roadmap.md) for what's built
 and what's next, and [`CLAUDE.md`](CLAUDE.md) for the durable build rules.
 
+## Repository and deployment
+
+Source of truth: `github.com/ihpmarketingto/os`. Production is on Vercel
+(`ihp-os.vercel.app`), deploying automatically from `main`. Real secrets live
+only in `.env.local` and Vercel's environment settings, never in the repo.
+
 ## Stack
 
 Next.js (App Router) · TypeScript · Tailwind CSS v4 · shadcn/ui (Base UI) ·
