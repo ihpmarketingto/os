@@ -10,6 +10,10 @@ Source of truth: `github.com/ihpmarketingto/os`. Production is on Vercel
 (`ihp-os.vercel.app`), deploying automatically from `main`. Real secrets live
 only in `.env.local` and Vercel's environment settings, never in the repo.
 
+The deploy rhythm: commit locally, `git push`, and Vercel builds and ships
+the change on its own. A failed build never replaces the last good one, so a
+broken push cannot take production down.
+
 ## Stack
 
 Next.js (App Router) · TypeScript · Tailwind CSS v4 · shadcn/ui (Base UI) ·
