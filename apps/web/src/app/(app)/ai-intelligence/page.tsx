@@ -48,7 +48,7 @@ export default async function AiIntelligencePage() {
         <div>
           <h1 className="font-heading text-2xl">AI Intelligence</h1>
           <p className="text-sm text-muted-foreground">
-            Draft mode only. Every run is logged with its sources, provider, model and estimated cost.
+            Draft mode only. Every run is logged with its sources, Task Envelope, provider, model and estimated cost.
           </p>
         </div>
         <div className="flex gap-2">
@@ -75,7 +75,7 @@ export default async function AiIntelligencePage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Recent runs</CardTitle>
-          <CardDescription>The audit trail keeps every prompt, output, source and cost.</CardDescription>
+          <CardDescription>The audit trail keeps every prompt, output, source, lineage and cost.</CardDescription>
         </CardHeader>
         <CardContent>
           {!recentRuns || recentRuns.length === 0 ? (

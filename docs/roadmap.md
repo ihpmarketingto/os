@@ -2,7 +2,38 @@
 
 > Related docs: [`build-spec.md`](build-spec.md) is the original master
 > specification; [`phases/`](phases/) holds the seven phase prompts it was
-> split into. This file tracks what has actually been built against them.
+> split into. [`architecture/operating-model.md`](architecture/operating-model.md)
+> tracks the cross-cutting OS → Identity → App → Plugin → Task foundation.
+> This file tracks what has actually been built against them.
+
+## Cross-cutting operating model foundation (implemented 2026-08-10)
+
+**What was added**
+
+- Canonical operating-model contracts in `packages/types/src/operating-model.ts`
+  for:
+  - Identity Registry
+  - App and Plugin manifests
+  - Task Envelope
+  - Client Adapter
+  - Learning Proposal
+  - Evidence lineage
+  - Evaluation records
+- New additive schema foundation in migration `0030`:
+  `identity_registry`, `client_adapters`, `task_envelopes`,
+  `learning_proposals`, `source_lineage_records`, `evaluation_records`.
+- AI Draft mode now records a typed Task Envelope and source lineage for the
+  inputs that materially influenced a successful draft.
+- A safe placeholder client-adapter template lives at
+  `docs/architecture/client-adapter.template.json`.
+
+**What this does not do**
+
+- It does not rename or replace existing modules.
+- It does not make the system autonomous.
+- It does not silently promote learning into durable truth.
+- It does not remove the current approval, QA or landing-page governance
+  rules.
 
 ## Phase 0 — Foundation (complete)
 

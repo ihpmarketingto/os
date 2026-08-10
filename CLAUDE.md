@@ -14,6 +14,10 @@ framework) is complete. Later phases build on it without rewriting it.
 
 - Monorepo: `apps/web` (Next.js App Router), `packages/*` (shared logic),
   `supabase/migrations` (schema, source of truth for the database).
+- The portable operating-model docs live in
+  `docs/architecture/operating-model.md` and `docs/architecture/README.md`.
+  Read them before adding a new AI workflow, identity layer, client adapter,
+  task-routing path or learning-promotion mechanic.
 - Business logic lives in `packages/*`, not inside `apps/web`. The Next.js
   app is a consumer of `@ihp/database`, `@ihp/types`, `@ihp/config`,
   `@ihp/integrations`, `@ihp/ai-router` — it should not reimplement

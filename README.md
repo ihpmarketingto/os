@@ -2,7 +2,9 @@
 
 The agency operating system for IHP Marketing. Multi-tenant, RLS-secured,
 built in phases. See [`docs/roadmap.md`](docs/roadmap.md) for what's built
-and what's next, and [`CLAUDE.md`](CLAUDE.md) for the durable build rules.
+and what's next, [`docs/architecture/operating-model.md`](docs/architecture/operating-model.md)
+for the portable OS → Identity → App → Plugin → Task model, and
+[`CLAUDE.md`](CLAUDE.md) for the durable build rules.
 
 ## Repository and deployment
 
@@ -30,7 +32,7 @@ packages/integrations Integration adapter framework (GitHub, Google Workspace, .
 packages/ai-router   AI provider routing framework (no live provider calls yet)
 supabase/migrations  Database schema, in order, with RLS policies
 scripts/seed.ts      Demo organisation + users + clients
-docs/                Roadmap, permission model, integration setup
+docs/                Roadmap, operating-model architecture, permission model, integration setup
 ```
 
 ## Prerequisites

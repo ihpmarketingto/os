@@ -1,0 +1,52 @@
+{
+  "stableId": "sample_client_adapter",
+  "clientId": "{{CLIENT_ID}}",
+  "clientName": "{{CLIENT_NAME}}",
+  "founderIdentityIds": ["{{FOUNDER_IDENTITY_ID}}"],
+  "teamIdentityIds": ["{{TEAM_IDENTITY_ID}}"],
+  "brandIdentityId": "{{BRAND_IDENTITY_ID}}",
+  "audienceIdentityIds": ["{{AUDIENCE_IDENTITY_ID}}"],
+  "approvedSourceLocations": [
+    "supabase://knowledge_entries/{{CLIENT_ID}}",
+    "supabase://documents/{{CLIENT_ID}}",
+    "github://{{CLIENT_REPOSITORY}}"
+  ],
+  "connectedTools": ["github", "google_workspace", "vercel"],
+  "permissionPolicy": {
+    "draft_retrieval": "UNSET",
+    "external_actions": "requires_explicit_human_approval",
+    "sensitive_client_communications": "requires_sarah_approval"
+  },
+  "claimPolicy": {
+    "approvedClaimsOnly": true,
+    "unknownThresholdBehaviour": "UNSET",
+    "crossClientReuse": "forbidden_without_explicit_approval"
+  },
+  "approvalOwners": ["{{SARAH_PROFILE_ID}}"],
+  "businessRules": [
+    "{{BUSINESS_RULE_1}}",
+    "{{BUSINESS_RULE_2}}"
+  ],
+  "dataBoundaries": [
+    "client_specific_sources_only",
+    "no_cross_client_retrieval",
+    "no_secret_storage_in_template"
+  ],
+  "enabledApps": [
+    "source_intelligence",
+    "content_communications",
+    "web_funnel_builds"
+  ],
+  "enabledPlugins": [
+    "source_routing",
+    "ai_draft_workspace",
+    "landing_page_factory"
+  ],
+  "currentOperatingMode": "shadow",
+  "clientConfiguration": {
+    "brandReviewCadence": "UNSET",
+    "claimEscalationOwner": "{{CLAIM_ESCALATION_OWNER}}"
+  },
+  "version": "1.0.0",
+  "reviewStatus": "draft"
+}

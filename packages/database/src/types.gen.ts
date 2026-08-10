@@ -1496,6 +1496,208 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["creative_assets"]["Row"]>;
         Relationships: [];
       };
+      identity_registry: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          stable_key: string;
+          display_name: string;
+          identity_type:
+            | "internal_operator"
+            | "client_founder"
+            | "client_team_member"
+            | "brand"
+            | "audience"
+            | "subject_matter_specialist"
+            | "system";
+          owner_profile_id: string | null;
+          scope: "organisation" | "client" | "app" | "plugin" | "task";
+          authority_notes: string | null;
+          evidence_status: "CONFIRMED" | "WORKING" | "HISTORICAL" | "VERIFY" | "UNSET";
+          source_references: Json;
+          reasoning_principles: Json;
+          voice_guidance: string | null;
+          restrictions: Json;
+          version: string;
+          review_status: "draft" | "working" | "approved" | "archived";
+          last_approved_at: string | null;
+          approved_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["identity_registry"]["Row"]> & {
+          organisation_id: string;
+          stable_key: string;
+          display_name: string;
+          identity_type: Database["public"]["Tables"]["identity_registry"]["Row"]["identity_type"];
+        };
+        Update: Partial<Database["public"]["Tables"]["identity_registry"]["Row"]>;
+        Relationships: [];
+      };
+      client_adapters: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          stable_key: string;
+          name: string;
+          founder_identity_ids: Json;
+          team_identity_ids: Json;
+          brand_identity_id: string | null;
+          audience_identity_ids: Json;
+          approved_source_locations: Json;
+          connected_tools: Json;
+          permission_policy: Json;
+          claim_policy: Json;
+          approval_owner_ids: Json;
+          business_rules: Json;
+          data_boundaries: Json;
+          enabled_apps: Json;
+          enabled_plugins: Json;
+          current_operating_mode: "shadow" | "approval" | "guardrailed_execution";
+          client_configuration: Json;
+          version: string;
+          review_status: "draft" | "working" | "approved" | "archived";
+          last_approved_at: string | null;
+          approved_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["client_adapters"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          stable_key: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["client_adapters"]["Row"]>;
+        Relationships: [];
+      };
+      task_envelopes: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          client_adapter_id: string | null;
+          work_item_id: string | null;
+          ai_run_id: string | null;
+          requested_by: string | null;
+          user_request: string;
+          relevant_identity_refs: Json;
+          selected_app: string;
+          selected_plugin: string;
+          source_references: Json;
+          operating_mode: "shadow" | "approval" | "guardrailed_execution";
+          authority_state: "missing" | "limited" | "confirmed";
+          permission_state: "unverified" | "granted" | "denied";
+          approval_requirements: Json;
+          current_step:
+            | "identify"
+            | "load"
+            | "diagnose"
+            | "plan"
+            | "gate"
+            | "produce_or_execute"
+            | "verify"
+            | "record"
+            | "hand_off";
+          current_status: "draft" | "in_progress" | "blocked" | "completed" | "handed_off" | "failed";
+          output_destination: Json;
+          audit_references: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["task_envelopes"]["Row"]> & {
+          organisation_id: string;
+          user_request: string;
+          selected_app: string;
+          selected_plugin: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["task_envelopes"]["Row"]>;
+        Relationships: [];
+      };
+      learning_proposals: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          proposed_by_profile_id: string | null;
+          proposed_by_ai_run_id: string | null;
+          raw_evidence_references: Json;
+          proposed_learning: string;
+          proposed_destination: Json;
+          reason_for_promotion: string;
+          confidence_label: "CONFIRMED" | "WORKING" | "HISTORICAL" | "VERIFY" | "UNSET";
+          contradictions_or_risks: Json;
+          status: "draft" | "pending_approval" | "approved" | "rejected" | "applied";
+          required_approver_id: string | null;
+          approval_record: Json;
+          version_impact: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["learning_proposals"]["Row"]> & {
+          organisation_id: string;
+          proposed_learning: string;
+          reason_for_promotion: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["learning_proposals"]["Row"]>;
+        Relationships: [];
+      };
+      source_lineage_records: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          task_envelope_id: string;
+          ai_run_id: string | null;
+          source_type: string;
+          source_id: string | null;
+          source_client_id: string | null;
+          source_locator: string | null;
+          source_version: string | null;
+          usage: "retrieved" | "opened" | "material" | "claim_origin";
+          claim_locator: string | null;
+          supplied_identity_id: string | null;
+          unresolved_uncertainty: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["source_lineage_records"]["Row"]> & {
+          organisation_id: string;
+          task_envelope_id: string;
+          source_type: string;
+          usage: Database["public"]["Tables"]["source_lineage_records"]["Row"]["usage"];
+        };
+        Update: Partial<Database["public"]["Tables"]["source_lineage_records"]["Row"]>;
+        Relationships: [];
+      };
+      evaluation_records: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string | null;
+          task_envelope_id: string | null;
+          plugin_id: string;
+          evaluator_identity_id: string | null;
+          evaluation_type: "self_check" | "independent_qa" | "human_review" | "performance_follow_up";
+          independent: boolean;
+          dimensions: Json;
+          overall_outcome: "pass" | "warning" | "fail" | "human_review_required";
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["evaluation_records"]["Row"]> & {
+          organisation_id: string;
+          plugin_id: string;
+          evaluation_type: Database["public"]["Tables"]["evaluation_records"]["Row"]["evaluation_type"];
+          overall_outcome: Database["public"]["Tables"]["evaluation_records"]["Row"]["overall_outcome"];
+        };
+        Update: Partial<Database["public"]["Tables"]["evaluation_records"]["Row"]>;
+        Relationships: [];
+      };
       knowledge_entries: {
         Row: {
           id: string;

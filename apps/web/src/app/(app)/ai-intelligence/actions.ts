@@ -1,8 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { computeChannelSummary, renderKnowledgeContext, selectKnowledgeForContext } from "@ihp/types";
-import { configuredProviders, executeChat, selectProvider, AiRoutingError, type AiTaskType } from "@ihp/ai-router";
+import {
+  computeChannelSummary,
+  evaluateTaskEnvelopeGate,
+  normaliseTaskEnvelope,
+  renderKnowledgeContext,
+  selectKnowledgeForContext,
+  validateClientAdapterSelection,
+  type ClientAdapter,
+  type SourceReference,
+} from "@ihp/types";
+import { configuredProviders, executeChat, selectProvider, AiRoutingError } from "@ihp/ai-router";
 import { hasPermission, requirePermission, writeAuditLog } from "@ihp/database";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
@@ -15,12 +24,29 @@ import { serverEnv } from "@/lib/env/server";
  */
 const MONTHLY_ORG_SPEND_CAP_USD = 25;
 
-const TASK_TYPES: { value: AiTaskType; label: string }[] = [
+const DRAFT_WORKSPACE_TASK_TYPES = [
+  "report_drafting",
+  "copy_generation",
+  "client_follow_up",
+  "long_form_strategy",
+] as const;
+
+type DraftWorkspaceTaskType = (typeof DRAFT_WORKSPACE_TASK_TYPES)[number];
+
+const TASK_TYPES: { value: DraftWorkspaceTaskType; label: string }[] = [
   { value: "report_drafting", label: "Report commentary draft" },
   { value: "copy_generation", label: "Marketing copy draft" },
   { value: "client_follow_up", label: "Client follow-up draft" },
   { value: "long_form_strategy", label: "Strategy notes draft" },
 ];
+
+const AI_TASK_CAPABILITY_ROUTE: Record<DraftWorkspaceTaskType, { selectedApp: string; selectedPlugin: string }> = {
+  report_drafting: { selectedApp: "reporting_measurement", selectedPlugin: "metrics_interpretation" },
+  copy_generation: { selectedApp: "content_communications", selectedPlugin: "ai_draft_workspace" },
+  client_follow_up: { selectedApp: "content_communications", selectedPlugin: "ai_draft_workspace" },
+  long_form_strategy: { selectedApp: "decisions", selectedPlugin: "strategy_drafting" },
+};
+
 export async function getTaskTypes() {
   return TASK_TYPES;
 }
@@ -41,18 +67,48 @@ export interface DraftResult {
   error?: string;
 }
 
+function buildTaskEnvelopeSourceReferences(input: {
+  clientId: string;
+  citations: Citation[];
+  knowledge: ReturnType<typeof selectKnowledgeForContext>;
+}): SourceReference[] {
+  const contextRefs: SourceReference[] = input.citations.map((citation) => ({
+    sourceType: citation.document_type,
+    sourceId: citation.document_id,
+    clientId: input.clientId,
+    locator: citation.title,
+    version: null,
+    evidenceLabel: "CONFIRMED",
+    usage: "material",
+    notes: citation.excerpt,
+  }));
+
+  const knowledgeRefs: SourceReference[] = input.knowledge.selected.map((selection) => ({
+    sourceType: "knowledge_entry",
+    sourceId: selection.entry.id,
+    clientId: selection.entry.clientId,
+    locator: selection.entry.title,
+    version: selection.entry.updatedAt,
+    evidenceLabel: selection.stale ? "VERIFY" : "CONFIRMED",
+    usage: "material",
+    notes: selection.included === "summary" ? "Summary used instead of full body due to context budget." : null,
+  }));
+
+  return [...contextRefs, ...knowledgeRefs];
+}
+
 export async function runDraft(_prev: DraftResult, formData: FormData): Promise<DraftResult> {
   const session = await requireSession();
   const supabase = await getSupabaseServerClient();
 
   const clientId = String(formData.get("clientId") ?? "").trim();
-  const taskType = String(formData.get("taskType") ?? "").trim() as AiTaskType;
+  const taskType = String(formData.get("taskType") ?? "").trim() as DraftWorkspaceTaskType;
   const instruction = String(formData.get("instruction") ?? "").trim();
 
   if (!clientId || !taskType || !instruction) {
     return { error: "Pick a client, a task type, and write an instruction." };
   }
-  if (!TASK_TYPES.some((t) => t.value === taskType)) {
+  if (!DRAFT_WORKSPACE_TASK_TYPES.includes(taskType)) {
     return { error: "Unknown task type." };
   }
 
@@ -72,6 +128,13 @@ export async function runDraft(_prev: DraftResult, formData: FormData): Promise<
     }
     const aiSettings = (client.ai_settings ?? {}) as { allowed_providers?: string[] };
     const allowedProviders = (aiSettings.allowed_providers ?? ["openai", "gemini", "anthropic"]) as ("openai" | "gemini" | "anthropic")[];
+    const { data: clientAdapter } = await supabase
+      .from("client_adapters")
+      .select(
+        "id, stable_key, name, founder_identity_ids, team_identity_ids, brand_identity_id, audience_identity_ids, approved_source_locations, connected_tools, permission_policy, claim_policy, approval_owner_ids, business_rules, data_boundaries, enabled_apps, enabled_plugins, current_operating_mode, client_configuration, version, review_status",
+      )
+      .eq("client_id", clientId)
+      .maybeSingle();
 
     // Gate 3: monthly spend cap.
     const monthStart = new Date();
@@ -235,6 +298,69 @@ export async function runDraft(_prev: DraftResult, formData: FormData): Promise<
       });
     }
 
+    const capabilityRoute = AI_TASK_CAPABILITY_ROUTE[taskType as DraftWorkspaceTaskType];
+    const sourceReferences = buildTaskEnvelopeSourceReferences({ clientId, citations, knowledge });
+    const taskEnvelope = normaliseTaskEnvelope({
+      taskId: crypto.randomUUID(),
+      clientId,
+      userRequest: instruction,
+      relevantIdentityRefs: [],
+      selectedApp: capabilityRoute.selectedApp,
+      selectedPlugin: capabilityRoute.selectedPlugin,
+      sourceReferences,
+      operatingMode: clientAdapter?.current_operating_mode ?? "shadow",
+      authorityState: "confirmed",
+      permissionState: "granted",
+      approvalRequirements: [
+        {
+          label: "Human review before any external send, publish or launch action",
+          approverRole: "internal_reviewer",
+          status: "pending",
+        },
+      ],
+      currentStep: "produce_or_execute",
+      currentStatus: "in_progress",
+      outputDestination: {
+        kind: "internal_draft",
+        target: "ai_intelligence",
+      },
+      auditReferences: [],
+    });
+
+    if (clientAdapter) {
+      const adapterView: ClientAdapter = {
+        stableId: clientAdapter.stable_key,
+        clientId,
+        clientName: client.name,
+        founderIdentityIds: (clientAdapter.founder_identity_ids as string[] | null) ?? [],
+        teamIdentityIds: (clientAdapter.team_identity_ids as string[] | null) ?? [],
+        brandIdentityId: clientAdapter.brand_identity_id,
+        audienceIdentityIds: (clientAdapter.audience_identity_ids as string[] | null) ?? [],
+        approvedSourceLocations: (clientAdapter.approved_source_locations as string[] | null) ?? [],
+        connectedTools: (clientAdapter.connected_tools as string[] | null) ?? [],
+        permissionPolicy: (clientAdapter.permission_policy as Record<string, unknown> | null) ?? {},
+        claimPolicy: (clientAdapter.claim_policy as Record<string, unknown> | null) ?? {},
+        approvalOwners: (clientAdapter.approval_owner_ids as string[] | null) ?? [],
+        businessRules: (clientAdapter.business_rules as string[] | null) ?? [],
+        dataBoundaries: (clientAdapter.data_boundaries as string[] | null) ?? [],
+        enabledApps: (clientAdapter.enabled_apps as string[] | null) ?? [],
+        enabledPlugins: (clientAdapter.enabled_plugins as string[] | null) ?? [],
+        currentOperatingMode: clientAdapter.current_operating_mode,
+        clientConfiguration: (clientAdapter.client_configuration as Record<string, unknown> | null) ?? {},
+        version: clientAdapter.version,
+        reviewStatus: clientAdapter.review_status,
+      };
+      const adapterGate = validateClientAdapterSelection(adapterView, taskEnvelope);
+      if (!adapterGate.allowed) {
+        return { error: adapterGate.reasons.join(" ") };
+      }
+    }
+
+    const taskGate = evaluateTaskEnvelopeGate(taskEnvelope, { requestedOutcome: "draft" });
+    if (!taskGate.allowed) {
+      return { error: taskGate.reasons.join(" ") };
+    }
+
     const systemPrompt = [
       "You are IHP Intelligence, the internal drafting assistant for IHP Marketing, a Canadian full-funnel growth agency.",
       "Rules, without exception:",
@@ -323,6 +449,59 @@ export async function runDraft(_prev: DraftResult, formData: FormData): Promise<
       }
     }
 
+    const completedEnvelope = {
+      id: taskEnvelope.taskId,
+      organisation_id: session.organisationId,
+      client_id: clientId,
+      client_adapter_id: clientAdapter?.id ?? null,
+      ai_run_id: run.id,
+      requested_by: session.userId,
+      user_request: taskEnvelope.userRequest,
+      relevant_identity_refs: taskEnvelope.relevantIdentityRefs,
+      selected_app: taskEnvelope.selectedApp,
+      selected_plugin: taskEnvelope.selectedPlugin,
+      source_references: taskEnvelope.sourceReferences,
+      operating_mode: taskEnvelope.operatingMode,
+      authority_state: taskEnvelope.authorityState,
+      permission_state: taskEnvelope.permissionState,
+      approval_requirements: taskEnvelope.approvalRequirements,
+      current_step: "record" as const,
+      current_status: "completed" as const,
+      output_destination: taskEnvelope.outputDestination,
+      audit_references: [],
+    };
+
+    const { error: taskEnvelopeError } = await supabase.from("task_envelopes").insert(completedEnvelope);
+    if (taskEnvelopeError) {
+      throw new Error(`Draft generated but Task Envelope could not be recorded: ${taskEnvelopeError.message}`);
+    }
+
+    if (sourceReferences.length > 0) {
+      const { error: lineageError } = await supabase.from("source_lineage_records").insert(
+        sourceReferences.map((source) => ({
+          organisation_id: session.organisationId,
+          client_id: clientId,
+          task_envelope_id: taskEnvelope.taskId,
+          ai_run_id: run.id,
+          source_type: source.sourceType,
+          source_id: source.sourceId,
+          source_client_id: source.clientId,
+          source_locator: source.locator,
+          source_version: source.version,
+          usage: source.usage,
+          claim_locator: null,
+          supplied_identity_id: null,
+          unresolved_uncertainty:
+            source.evidenceLabel === "VERIFY" || source.evidenceLabel === "UNSET"
+              ? "This source still needs explicit human verification before it becomes durable truth."
+              : null,
+        })),
+      );
+      if (lineageError) {
+        throw new Error(`Draft generated but source lineage could not be recorded: ${lineageError.message}`);
+      }
+    }
+
     await writeAuditLog(supabase, {
       organisationId: session.organisationId,
       actorUserId: session.userId,
@@ -367,15 +546,29 @@ export async function convertRunToTask(runId: string): Promise<{ error?: string 
   const canCreate = await hasPermission(supabase, session.organisationId, "tasks", "create", run.client_id);
   if (!canCreate) return { error: "You do not have permission to create tasks for this client." };
 
-  const { error: taskError } = await supabase.from("tasks").insert({
-    organisation_id: session.organisationId,
-    client_id: run.client_id,
-    title: `Review AI draft: ${run.task_type.replace(/_/g, " ")}`,
-    category: "review",
-    priority: "medium",
-    assignee_id: session.userId,
-  });
+  const { data: task, error: taskError } = await supabase
+    .from("tasks")
+    .insert({
+      organisation_id: session.organisationId,
+      client_id: run.client_id,
+      title: `Review AI draft: ${run.task_type.replace(/_/g, " ")}`,
+      category: "review",
+      priority: "medium",
+      assignee_id: session.userId,
+    })
+    .select("id")
+    .single();
   if (taskError) return { error: taskError.message };
+
+  await supabase
+    .from("task_envelopes")
+    .update({
+      work_item_id: task.id,
+      current_step: "hand_off",
+      current_status: "handed_off",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("ai_run_id", runId);
 
   revalidatePath("/tasks");
   return {};
