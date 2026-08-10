@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CheckCheck, Plus, Rocket, ShieldCheck } from "lucide-react";
+import { CheckCheck, Copy, Plus, Rocket, ShieldCheck } from "lucide-react";
 import { QA_CHECKLIST } from "@ihp/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,8 @@ import {
   addBuildLibraryProject,
   advancePageStatus,
   approveBrief,
+  cloneTemplate,
+  createTemplateFromPreset,
   createBrief,
   createPageProject,
   publishPage,
@@ -147,7 +149,7 @@ export function ReuseStatusButtons({ projectId, status }: { projectId: string; s
   );
 }
 
-export function NewBriefDialog({ clients }: { clients: Option[] }) {
+export function NewBriefDialog({ clients, campaigns }: { clients: Option[]; campaigns: Option[] }) {
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -178,6 +180,19 @@ export function NewBriefDialog({ clients }: { clients: Option[] }) {
                 ))}
               </select>
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="brief-campaign">Campaign</Label>
+              <select id="brief-campaign" name="campaignId" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                <option value="">No campaign yet</option>
+                {campaigns.map((campaign) => (
+                  <option key={campaign.id} value={campaign.id}>
+                    {campaign.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="brief-title">Title</Label>
               <Input id="brief-title" name="title" required />
@@ -272,9 +287,13 @@ export function ApproveBriefButton({ briefId }: { briefId: string }) {
 export function NewPageProjectDialog({
   briefs,
   references,
+  templates,
+  projects,
 }: {
   briefs: Option[];
   references: Option[];
+  templates: Option[];
+  projects: Option[];
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -294,6 +313,17 @@ export function NewPageProjectDialog({
           }}
           className="space-y-3"
         >
+          <div className="space-y-1.5">
+            <Label htmlFor="page-project-link">Delivery project</Label>
+            <select id="page-project-link" name="projectId" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+              <option value="">No linked project</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor="page-brief">Approved brief</Label>
             <select id="page-brief" name="briefId" required className="w-full rounded-md border bg-background px-3 py-2 text-sm">
@@ -317,6 +347,18 @@ export function NewPageProjectDialog({
               <option value="build_from_components">Build from components</option>
               <option value="improve_existing">Improve existing page</option>
             </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="page-template">Reusable template</Label>
+            <select id="page-template" name="templateId" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+              <option value="">Use the built-in Lip Blush conversion preset</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+            <input type="hidden" name="templatePresetKey" value="lip_blush_conversion" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="page-reference">Reference project (approved for reuse only)</Label>
@@ -364,10 +406,7 @@ const NEXT_STATUS: Record<string, { to: PageStatus; label: string; needsPreviewU
   generating: [{ to: "preview", label: "Preview ready", needsPreviewUrl: true }],
   preview: [{ to: "qa", label: "Send to QA" }],
   qa: [{ to: "internal_approval", label: "Send to internal approval" }],
-  internal_approval: [
-    { to: "client_approval", label: "Request client approval" },
-    { to: "qa", label: "Back to QA" },
-  ],
+  internal_approval: [{ to: "qa", label: "Back to QA" }],
   client_approval: [{ to: "preview", label: "Back to preview" }],
   published: [{ to: "archived", label: "Archive" }],
 };
@@ -399,7 +438,7 @@ export function PageStatusActions({ projectId, status }: { projectId: string; st
   );
 }
 
-export function QaRunDialog({ projectId, projectName }: { projectId: string; projectName: string }) {
+export function QaRunDialog({ projectId, versionId, projectName }: { projectId: string; versionId?: string | null; projectName: string }) {
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -419,6 +458,7 @@ export function QaRunDialog({ projectId, projectName }: { projectId: string; pro
           className="space-y-2"
         >
           <input type="hidden" name="projectId" value={projectId} />
+          {versionId ? <input type="hidden" name="versionId" value={versionId} /> : null}
           {QA_CHECKLIST.map((check) => (
             <div key={check} className="flex items-center justify-between gap-3 border-b pb-2">
               <span className="text-sm">{check}</span>
@@ -435,6 +475,76 @@ export function QaRunDialog({ projectId, projectName }: { projectId: string; pro
           </div>
           <Button type="submit" className="w-full">
             Record QA run
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function CreateTemplateDialog() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button size="sm" variant="outline"><Plus className="mr-1 size-3.5" /> New template</Button>} />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create reusable template</DialogTitle>
+          <DialogDescription>
+            Starts from the built-in Lip Blush conversion preset, then becomes reusable across client page projects.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          action={async (formData) => {
+            await createTemplateFromPreset(formData);
+            setOpen(false);
+          }}
+          className="space-y-3"
+        >
+          <input type="hidden" name="presetKey" value="lip_blush_conversion" />
+          <div className="space-y-1.5">
+            <Label htmlFor="template-name">Template name</Label>
+            <Input id="template-name" name="name" required placeholder="Lip Blush conversion template" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="template-description">Description</Label>
+            <Textarea id="template-description" name="description" rows={3} />
+          </div>
+          <Button type="submit" className="w-full">
+            Create template
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function CloneTemplateDialog({ templateId, templateName }: { templateId: string; templateName: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button size="sm" variant="ghost"><Copy className="mr-1 size-3.5" /> Clone</Button>} />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Clone template</DialogTitle>
+          <DialogDescription>
+            Make a reusable copy of {templateName} so you can adapt it without touching the original.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          action={async (formData) => {
+            await cloneTemplate(formData);
+            setOpen(false);
+          }}
+          className="space-y-3"
+        >
+          <input type="hidden" name="templateId" value={templateId} />
+          <div className="space-y-1.5">
+            <Label htmlFor={`template-clone-${templateId}`}>New template name</Label>
+            <Input id={`template-clone-${templateId}`} name="name" required defaultValue={`${templateName} copy`} />
+          </div>
+          <Button type="submit" className="w-full">
+            Clone template
           </Button>
         </form>
       </DialogContent>

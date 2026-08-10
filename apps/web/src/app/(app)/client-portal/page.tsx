@@ -72,7 +72,7 @@ export default async function ClientPortalPage({
       // item is fetched in a second query rather than a PostgREST embed.
       supabase
         .from("approvals")
-        .select("id, status, requested_at, subject_type, subject_id")
+        .select("id, status, requested_at, subject_type, subject_id, landing_page_version_id")
         .eq("client_id", targetClientId)
         .eq("status", "pending"),
       supabase.from("documents").select("id, name").eq("client_id", targetClientId).eq("client_visible", true).is("deleted_at", null),
@@ -106,23 +106,32 @@ export default async function ClientPortalPage({
   const pageApprovalIds = (rawApprovals ?? [])
     .filter((a) => a.subject_type === "landing_page")
     .map((a) => a.subject_id);
+  const pageApprovalVersionIds = (rawApprovals ?? [])
+    .filter((a) => a.subject_type === "landing_page")
+    .map((a) => a.landing_page_version_id)
+    .filter((value): value is string => Boolean(value));
 
-  const [{ data: approvalContent }, { data: approvalPages }] = await Promise.all([
+  const [{ data: approvalContent }, { data: approvalPages }, { data: approvalVersions }] = await Promise.all([
     contentApprovalIds.length
       ? supabase.from("content_items").select("id, hook, content_type, caption").in("id", contentApprovalIds)
       : Promise.resolve({ data: [] as { id: string; hook: string | null; content_type: string | null; caption: string | null }[] }),
     pageApprovalIds.length
       ? supabase.from("landing_page_projects").select("id, name, preview_url").in("id", pageApprovalIds)
       : Promise.resolve({ data: [] as { id: string; name: string; preview_url: string | null }[] }),
+    pageApprovalVersionIds.length
+      ? supabase.from("landing_page_versions").select("id, version_name, version_number").in("id", pageApprovalVersionIds)
+      : Promise.resolve({ data: [] as { id: string; version_name: string; version_number: number }[] }),
   ]);
   const contentById = new Map((approvalContent ?? []).map((c) => [c.id, c]));
   const pageById = new Map((approvalPages ?? []).map((p) => [p.id, p]));
+  const pageVersionById = new Map((approvalVersions ?? []).map((version) => [version.id, version]));
 
   const pendingApprovals = (rawApprovals ?? [])
     .map((a) => ({
       ...a,
       content: contentById.get(a.subject_id) ?? null,
       page: pageById.get(a.subject_id) ?? null,
+      pageVersion: a.landing_page_version_id ? pageVersionById.get(a.landing_page_version_id) ?? null : null,
     }))
     .filter(
       (a) =>
@@ -151,6 +160,11 @@ export default async function ClientPortalPage({
                 return (
                   <div key={a.id} className="rounded-md border p-3">
                     <p className="text-sm font-medium">Landing page: {a.page.name}</p>
+                    {a.pageVersion ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Version: {a.pageVersion.version_name} · v{a.pageVersion.version_number}
+                      </p>
+                    ) : null}
                     {a.page.preview_url ? (
                       <a
                         href={a.page.preview_url}

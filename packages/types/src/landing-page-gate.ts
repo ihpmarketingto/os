@@ -55,6 +55,9 @@ export interface PublishGateInputs {
   projectStatus: string;
   latestQaOverall: QaResult | null;
   clientApproved: boolean;
+  submittedVersionId?: string | null;
+  latestQaVersionId?: string | null;
+  approvedVersionId?: string | null;
 }
 
 export interface PublishGateResult {
@@ -78,9 +81,16 @@ export function canPublishLandingPage(input: PublishGateInputs): PublishGateResu
     reasons.push("No QA run has been recorded.");
   } else if (input.latestQaOverall === "fail") {
     reasons.push("The latest QA run failed. Fix the failures and re-run QA.");
+  } else if (input.submittedVersionId && input.latestQaVersionId !== input.submittedVersionId) {
+    reasons.push("The latest QA run does not cover the submitted page version.");
   }
   if (!input.clientApproved) {
     reasons.push("Client approval has not been recorded.");
+  } else if (input.submittedVersionId && input.approvedVersionId !== input.submittedVersionId) {
+    reasons.push("Client approval was recorded for a different page version.");
+  }
+  if (!input.submittedVersionId) {
+    reasons.push("No page version has been submitted for approval.");
   }
 
   return { allowed: reasons.length === 0, reasons };

@@ -1,15 +1,202 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canPublishLandingPage, summariseQaRun, type QaItem } from "@ihp/types";
+import {
+  canPublishLandingPage,
+  normaliseLandingPageDraft,
+  summariseQaRun,
+  validateLandingPageClientIsolation,
+  type LandingPageDraft,
+  type LandingPageValidationResult,
+  type QaItem,
+} from "@ihp/types";
 import { requirePermission, writeAuditLog, type Json } from "@ihp/database";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { slugify } from "@/lib/utils";
 import { isRuleEnabled, notifyUsers, recordRun } from "@/lib/automations/engine";
+import { buildDraftFromPreset, buildPresetSkeleton } from "./template-presets";
 
 function str(formData: FormData, key: string): string | null {
   const value = String(formData.get(key) ?? "").trim();
   return value || null;
+}
+
+function parseDraft(formData: FormData): LandingPageDraft {
+  const raw = str(formData, "draftJson");
+  if (!raw) throw new Error("Draft payload is required");
+  return normaliseLandingPageDraft(JSON.parse(raw));
+}
+
+function toJson(value: unknown): Json {
+  return value as Json;
+}
+
+function draftToTemplateDefaults(draft: LandingPageDraft): Json {
+  return toJson({
+    theme: draft.theme,
+    form: draft.form,
+    tracking: draft.tracking,
+    seo: draft.seo,
+    social: draft.social,
+    assetSlots: draft.assetSlots,
+    sourceContext: draft.sourceContext,
+  });
+}
+
+function buildTemplateBackedDraft(input: {
+  template: {
+    name: string;
+    template_key: string;
+    structure: Json;
+    defaults: Json;
+  };
+  brief: {
+    title: string;
+    offer: string;
+    main_cta: string;
+    brand_direction: string | null;
+    booking_link: string | null;
+  };
+  client: {
+    name: string;
+  };
+}): LandingPageDraft {
+  const defaults = (input.template.defaults as Record<string, unknown> | null) ?? {};
+  const themeDefaults = (defaults.theme as Record<string, unknown> | undefined) ?? {};
+  const formDefaults = (defaults.form as Record<string, unknown> | undefined) ?? {};
+  const trackingDefaults = (defaults.tracking as Record<string, unknown> | undefined) ?? {};
+  const seoDefaults = (defaults.seo as Record<string, unknown> | undefined) ?? {};
+  const socialDefaults = (defaults.social as Record<string, unknown> | undefined) ?? {};
+  const assetSlotDefaults = (defaults.assetSlots as unknown[] | undefined) ?? [];
+  const sourceContextDefaults = (defaults.sourceContext as Record<string, unknown> | undefined) ?? {};
+
+  return normaliseLandingPageDraft({
+    templateKey: input.template.template_key,
+    templateName: input.template.name,
+    versionName: "Version 1",
+    title: input.brief.title,
+    slug: slugify(input.brief.title),
+    domain: null,
+    subdomain: null,
+    theme: {
+      ...themeDefaults,
+      brandName: input.client.name,
+      tagLine:
+        input.brief.brand_direction ??
+        (typeof themeDefaults.tagLine === "string" ? themeDefaults.tagLine : null),
+    },
+    sections: input.template.structure,
+    form: {
+      ...formDefaults,
+      bookingUrl:
+        input.brief.booking_link ??
+        (typeof formDefaults.bookingUrl === "string" ? formDefaults.bookingUrl : null),
+      submitLabel:
+        input.brief.main_cta ||
+        (typeof formDefaults.submitLabel === "string" ? formDefaults.submitLabel : "Reserve my spot"),
+    },
+    tracking: trackingDefaults,
+    seo: {
+      ...seoDefaults,
+      metaTitle: input.brief.title,
+      metaDescription: input.brief.offer,
+      ogTitle:
+        typeof seoDefaults.ogTitle === "string" && seoDefaults.ogTitle
+          ? seoDefaults.ogTitle
+          : input.brief.title,
+      ogDescription:
+        typeof seoDefaults.ogDescription === "string" && seoDefaults.ogDescription
+          ? seoDefaults.ogDescription
+          : input.brief.offer,
+    },
+    social: socialDefaults,
+    assetSlots: assetSlotDefaults,
+    sourceContext: sourceContextDefaults,
+    notes: null,
+  });
+}
+
+function buildDraftValidation(draft: LandingPageDraft, isolationMessages: string[]): LandingPageValidationResult[] {
+  const results: LandingPageValidationResult[] = isolationMessages.map((message) => ({
+    scope: message.includes("knowledge") ? "knowledge" : "asset",
+    severity: "error",
+    message,
+  }));
+
+  if (draft.form.ctaType === "booking_link" && !draft.form.bookingUrl) {
+    results.push({
+      scope: "publish",
+      severity: "error",
+      message: "A booking URL is required when the primary CTA uses a booking destination.",
+    });
+  }
+
+  if (!draft.tracking.ga4MeasurementId && !draft.tracking.metaPixelId) {
+    results.push({
+      scope: "publish",
+      severity: "warning",
+      message: "Tracking IDs are still empty. Add GA4, Meta Pixel, or both before publishing.",
+    });
+  }
+
+  return results;
+}
+
+async function validateDraftIsolation(
+  supabase: Awaited<ReturnType<typeof getSupabaseServerClient>>,
+  clientId: string,
+  draft: LandingPageDraft,
+) {
+  const documentIds = draft.assetSlots.map((slot) => slot.documentId).filter((value): value is string => Boolean(value));
+  const creativeAssetIds = draft.assetSlots
+    .map((slot) => slot.creativeAssetId)
+    .filter((value): value is string => Boolean(value));
+  const knowledgeIds = [
+    ...draft.sourceContext.brandVoiceIds,
+    ...draft.sourceContext.offerIds,
+    ...draft.sourceContext.audienceIds,
+    ...draft.sourceContext.restrictionIds,
+    ...draft.sourceContext.proofIds,
+  ];
+
+  const [{ data: documents }, { data: assets }, { data: knowledgeEntries }] = await Promise.all([
+    documentIds.length
+      ? supabase.from("documents").select("id, client_id, name").in("id", documentIds)
+      : Promise.resolve({ data: [] as { id: string; client_id: string | null; name: string }[] }),
+    creativeAssetIds.length
+      ? supabase.from("creative_assets").select("id, client_id, name").in("id", creativeAssetIds)
+      : Promise.resolve({ data: [] as { id: string; client_id: string | null; name: string }[] }),
+    knowledgeIds.length
+      ? supabase.from("knowledge_entries").select("id, client_id, title").in("id", knowledgeIds)
+      : Promise.resolve({ data: [] as { id: string; client_id: string | null; title: string }[] }),
+  ]);
+
+  const isolation = validateLandingPageClientIsolation(clientId, [
+    ...(documents ?? []).map((doc) => ({
+      kind: "document" as const,
+      id: doc.id,
+      clientId: doc.client_id,
+      label: doc.name,
+    })),
+    ...(assets ?? []).map((asset) => ({
+      kind: "creative_asset" as const,
+      id: asset.id,
+      clientId: asset.client_id,
+      label: asset.name,
+    })),
+    ...(knowledgeEntries ?? []).map((entry) => ({
+      kind: "knowledge_entry" as const,
+      id: entry.id,
+      clientId: entry.client_id,
+      label: entry.title,
+    })),
+  ]);
+
+  return {
+    isolation,
+    validationResults: buildDraftValidation(draft, isolation.messages),
+  };
 }
 
 export async function addBuildLibraryProject(formData: FormData): Promise<void> {
@@ -171,6 +358,9 @@ export async function createPageProject(formData: FormData): Promise<void> {
 
   const briefId = str(formData, "briefId");
   const name = str(formData, "name");
+  const projectId = str(formData, "projectId");
+  const templateId = str(formData, "templateId");
+  const templatePresetKey = str(formData, "templatePresetKey") ?? "lip_blush_conversion";
   const mode = str(formData, "generationMode") as
     | "clone_and_adapt"
     | "build_from_components"
@@ -182,7 +372,9 @@ export async function createPageProject(formData: FormData): Promise<void> {
   // Pages only ever start from an APPROVED brief (source-of-truth hierarchy).
   const { data: brief, error: briefError } = await supabase
     .from("landing_page_briefs")
-    .select("id, client_id, status")
+    .select(
+      "id, client_id, status, title, offer, audience, goal, conversion_action, main_cta, secondary_cta, traffic_source, price, promotion, deadline, booking_link, testimonials, objections, proof_points, differentiators, required_claims, forbidden_claims, required_disclaimer, brand_direction, required_tracking, launch_date, campaign_id",
+    )
     .eq("id", briefId)
     .single();
   if (briefError) throw new Error(briefError.message);
@@ -208,6 +400,7 @@ export async function createPageProject(formData: FormData): Promise<void> {
       organisation_id: session.organisationId,
       client_id: brief.client_id,
       brief_id: brief.id,
+      project_id: projectId,
       name,
       generation_mode: mode,
       reference_build_project_id: referenceId,
@@ -215,9 +408,87 @@ export async function createPageProject(formData: FormData): Promise<void> {
       branch: str(formData, "branch"),
       created_by: session.userId,
     })
-    .select("id")
+    .select("id, client_id")
     .single();
   if (error) throw new Error(error.message);
+
+  const [{ data: client }, { data: campaign }, { data: template }] = await Promise.all([
+    supabase.from("clients").select("id, name, website, brand_kit").eq("id", brief.client_id).single(),
+    brief.campaign_id
+      ? supabase
+          .from("campaigns")
+          .select("id, name, objective, offer, audience, channels, kpis, results, learnings")
+          .eq("id", brief.campaign_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    templateId
+      ? supabase
+          .from("landing_page_templates")
+          .select("id, name, template_key, structure, defaults")
+          .eq("id", templateId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  if (!client) throw new Error("Client not found");
+
+  const initialDraft = template
+    ? buildTemplateBackedDraft({
+        template,
+        brief: {
+          title: brief.title,
+          offer: brief.offer,
+          main_cta: brief.main_cta,
+          brand_direction: brief.brand_direction,
+          booking_link: brief.booking_link,
+        },
+        client: { name: client.name },
+      })
+    : buildDraftFromPreset({
+        presetKey: templatePresetKey,
+        client,
+        brief,
+        campaign,
+      });
+
+  const { isolation, validationResults } = await validateDraftIsolation(supabase, brief.client_id, initialDraft);
+
+  const { data: version, error: versionError } = await supabase
+    .from("landing_page_versions")
+    .insert({
+      organisation_id: session.organisationId,
+      client_id: brief.client_id,
+      landing_page_project_id: project.id,
+      template_id: template?.id ?? null,
+      template_key: initialDraft.templateKey,
+      template_name: initialDraft.templateName,
+      version_number: 1,
+      version_name: initialDraft.versionName,
+      title: initialDraft.title,
+      slug: initialDraft.slug,
+      subdomain: initialDraft.subdomain,
+      domain: initialDraft.domain,
+      theme_settings: toJson(initialDraft.theme),
+      sections: toJson(initialDraft.sections),
+      form_settings: toJson(initialDraft.form),
+      tracking_settings: toJson(initialDraft.tracking),
+      seo_settings: toJson(initialDraft.seo),
+      social_settings: toJson(initialDraft.social),
+      asset_slots: toJson(initialDraft.assetSlots),
+      source_context: toJson(initialDraft.sourceContext),
+      validation_results: toJson(validationResults),
+      leakage_check_passed: isolation.passed,
+      created_by: session.userId,
+    })
+    .select("id")
+    .single();
+  if (versionError) throw new Error(versionError.message);
+
+  const { error: projectUpdateError } = await supabase
+    .from("landing_page_projects")
+    .update({ draft_version_id: version.id } as never)
+    .eq("id", project.id);
+  if (projectUpdateError) throw new Error(projectUpdateError.message);
 
   await writeAuditLog(supabase, {
     organisationId: session.organisationId,
@@ -226,10 +497,11 @@ export async function createPageProject(formData: FormData): Promise<void> {
     resource: "landing_page_projects",
     resourceId: project.id,
     clientId: brief.client_id,
-    metadata: { name, mode },
+    metadata: { name, mode, templateId, templatePresetKey, projectId },
   });
 
   revalidatePath("/landing-page-factory");
+  revalidatePath(`/landing-page-factory/${project.id}`);
 }
 
 const PAGE_TRANSITIONS: Record<string, string[]> = {
@@ -237,7 +509,7 @@ const PAGE_TRANSITIONS: Record<string, string[]> = {
   generating: ["preview"],
   preview: ["qa"],
   qa: ["internal_approval", "preview"],
-  internal_approval: ["client_approval", "qa"],
+  internal_approval: ["qa"],
   client_approval: ["preview"],
   approved_to_publish: [],
   published: ["archived"],
@@ -279,18 +551,7 @@ export async function advancePageStatus(
   const effectivePreviewUrl = previewUrl?.trim() || project.preview_url;
 
   if (nextStatus === "client_approval") {
-    if (!effectivePreviewUrl) {
-      throw new Error("A preview URL is required before requesting client approval.");
-    }
-    const { error: approvalError } = await supabase.from("approvals").insert({
-      organisation_id: session.organisationId,
-      client_id: project.client_id,
-      subject_type: "landing_page",
-      subject_id: project.id,
-      requested_by: session.userId,
-      status: "pending",
-    });
-    if (approvalError) throw new Error(approvalError.message);
+    throw new Error("Submit an exact page version for approval from the page editor.");
   }
 
   const { error } = await supabase
@@ -331,6 +592,7 @@ export async function recordQaRun(formData: FormData): Promise<void> {
   await requirePermission(supabase, session.organisationId, "landing_page_factory", "update");
 
   const projectId = str(formData, "projectId");
+  const versionId = str(formData, "versionId");
   if (!projectId) throw new Error("Project is required");
 
   const items: QaItem[] = [];
@@ -349,6 +611,7 @@ export async function recordQaRun(formData: FormData): Promise<void> {
   const { error } = await supabase.from("qa_runs").insert({
     organisation_id: session.organisationId,
     landing_page_project_id: projectId,
+    landing_page_version_id: versionId,
     run_by: session.userId,
     overall,
     items: items as unknown as Json,
@@ -387,6 +650,396 @@ export async function recordQaRun(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/landing-page-factory");
+  revalidatePath(`/landing-page-factory/${projectId}`);
+}
+
+export async function createTemplateFromPreset(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+  await requirePermission(supabase, session.organisationId, "landing_page_factory", "update");
+
+  const presetKey = str(formData, "presetKey") ?? "lip_blush_conversion";
+  const name = str(formData, "name") ?? "Landing page template";
+  const skeleton = buildPresetSkeleton(presetKey);
+
+  const { data: template, error } = await supabase
+    .from("landing_page_templates")
+    .insert({
+      organisation_id: session.organisationId,
+      name,
+      slug: slugify(name),
+      description: str(formData, "description"),
+      category: "offer_landing_page",
+      source: "native",
+      template_key: presetKey,
+      structure: toJson(skeleton.sections),
+      defaults: draftToTemplateDefaults(skeleton),
+      preview_config: toJson({ versionName: skeleton.versionName }),
+      created_by: session.userId,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: "create",
+    resource: "landing_page_templates",
+    resourceId: template.id,
+    metadata: { name, presetKey },
+  });
+
+  revalidatePath("/landing-page-factory");
+}
+
+export async function cloneTemplate(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+  await requirePermission(supabase, session.organisationId, "landing_page_factory", "update");
+
+  const templateId = str(formData, "templateId");
+  const name = str(formData, "name");
+  if (!templateId || !name) throw new Error("Template and name are required");
+
+  const { data: template, error: fetchError } = await supabase
+    .from("landing_page_templates")
+    .select("id, template_key, structure, defaults, description, category")
+    .eq("id", templateId)
+    .single();
+  if (fetchError) throw new Error(fetchError.message);
+
+  const { data: clone, error } = await supabase
+    .from("landing_page_templates")
+    .insert({
+      organisation_id: session.organisationId,
+      name,
+      slug: slugify(name),
+      description: template.description,
+      category: template.category,
+      source: "cloned",
+      cloned_from_template_id: template.id,
+      template_key: template.template_key,
+      structure: template.structure,
+      defaults: template.defaults,
+      preview_config: toJson({ clonedFromTemplateId: template.id }),
+      created_by: session.userId,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: "create",
+    resource: "landing_page_templates",
+    resourceId: clone.id,
+    metadata: { clonedFromTemplateId: template.id, name },
+  });
+
+  revalidatePath("/landing-page-factory");
+}
+
+export async function saveDraftVersion(formData: FormData): Promise<{ versionId: string }> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+  const projectId = str(formData, "projectId");
+  let versionId = str(formData, "versionId");
+  if (!projectId) throw new Error("Project is required");
+
+  const draft = parseDraft(formData);
+
+  const { data: project, error: projectError } = await supabase
+    .from("landing_page_projects")
+    .select("id, client_id")
+    .eq("id", projectId)
+    .single();
+  if (projectError) throw new Error(projectError.message);
+
+  await requirePermission(supabase, session.organisationId, "landing_page_factory", "update", project.client_id);
+
+  const { isolation, validationResults } = await validateDraftIsolation(supabase, project.client_id, draft);
+
+  const { data: latestVersion } = await supabase
+    .from("landing_page_versions")
+    .select("id, version_number")
+    .eq("landing_page_project_id", projectId)
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let shouldInsert = !versionId;
+  if (versionId) {
+    const { data: existingVersion, error: existingError } = await supabase
+      .from("landing_page_versions")
+      .select("id, status")
+      .eq("id", versionId)
+      .single();
+    if (existingError) throw new Error(existingError.message);
+    shouldInsert = !["draft", "changes_requested"].includes(existingVersion.status);
+  }
+
+  if (shouldInsert) {
+    const nextVersionNumber = (latestVersion?.version_number ?? 0) + 1;
+    const { data: insertedVersion, error } = await supabase
+      .from("landing_page_versions")
+      .insert({
+        organisation_id: session.organisationId,
+        client_id: project.client_id,
+        landing_page_project_id: projectId,
+        template_key: draft.templateKey,
+        template_name: draft.templateName,
+        version_number: nextVersionNumber,
+        version_name: draft.versionName || `Version ${nextVersionNumber}`,
+        title: draft.title,
+        slug: draft.slug,
+        subdomain: draft.subdomain,
+        domain: draft.domain,
+        theme_settings: toJson(draft.theme),
+        sections: toJson(draft.sections),
+        form_settings: toJson(draft.form),
+        tracking_settings: toJson(draft.tracking),
+        seo_settings: toJson(draft.seo),
+        social_settings: toJson(draft.social),
+        asset_slots: toJson(draft.assetSlots),
+        source_context: toJson(draft.sourceContext),
+        validation_results: toJson(validationResults),
+        leakage_check_passed: isolation.passed,
+        created_by: session.userId,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    versionId = insertedVersion.id;
+  } else {
+    const { error } = await supabase
+      .from("landing_page_versions")
+      .update({
+        template_key: draft.templateKey,
+        template_name: draft.templateName,
+        version_name: draft.versionName,
+        title: draft.title,
+        slug: draft.slug,
+        subdomain: draft.subdomain,
+        domain: draft.domain,
+        theme_settings: toJson(draft.theme),
+        sections: toJson(draft.sections),
+        form_settings: toJson(draft.form),
+        tracking_settings: toJson(draft.tracking),
+        seo_settings: toJson(draft.seo),
+        social_settings: toJson(draft.social),
+        asset_slots: toJson(draft.assetSlots),
+        source_context: toJson(draft.sourceContext),
+        validation_results: toJson(validationResults),
+        leakage_check_passed: isolation.passed,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", versionId as string);
+    if (error) throw new Error(error.message);
+  }
+
+  const { error: projectUpdateError } = await supabase
+    .from("landing_page_projects")
+    .update({ draft_version_id: versionId } as never)
+    .eq("id", projectId);
+  if (projectUpdateError) throw new Error(projectUpdateError.message);
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: shouldInsert ? "create" : "update",
+    resource: "landing_page_versions",
+    resourceId: versionId,
+    clientId: project.client_id,
+    metadata: { projectId, versionName: draft.versionName, leakageCheckPassed: isolation.passed },
+  });
+
+  revalidatePath("/landing-page-factory");
+  revalidatePath(`/landing-page-factory/${projectId}`);
+
+  return { versionId: versionId as string };
+}
+
+export async function submitVersionForApproval(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+  const projectId = str(formData, "projectId");
+  const versionId = str(formData, "versionId");
+  const previewUrl = str(formData, "previewUrl");
+  if (!projectId || !versionId) throw new Error("Project and version are required");
+
+  const [{ data: project, error: projectError }, { data: version, error: versionError }, { data: pendingApproval }] = await Promise.all([
+    supabase
+      .from("landing_page_projects")
+      .select("id, client_id, status, preview_url")
+      .eq("id", projectId)
+      .single(),
+    supabase
+      .from("landing_page_versions")
+      .select("id, status, client_id, landing_page_project_id, leakage_check_passed, validation_results")
+      .eq("id", versionId)
+      .single(),
+    supabase
+      .from("approvals")
+      .select("id")
+      .eq("subject_type", "landing_page")
+      .eq("subject_id", projectId)
+      .eq("status", "pending")
+      .maybeSingle(),
+  ]);
+  if (projectError) throw new Error(projectError.message);
+  if (versionError) throw new Error(versionError.message);
+
+  await requirePermission(supabase, session.organisationId, "landing_page_factory", "update", project.client_id);
+
+  if (project.status !== "internal_approval") {
+    throw new Error("Move the page project to internal approval before requesting client approval.");
+  }
+  if (version.landing_page_project_id !== projectId) {
+    throw new Error("That version does not belong to this page project.");
+  }
+  if (!version.leakage_check_passed) {
+    throw new Error("Cross-client validation failed. Resolve the conflicting references before approval.");
+  }
+  if ((version.validation_results as LandingPageValidationResult[]).some((item) => item.severity === "error")) {
+    throw new Error("This version still has blocking validation errors.");
+  }
+  if (pendingApproval) {
+    throw new Error("There is already a pending approval for this page project.");
+  }
+
+  const effectivePreviewUrl = previewUrl ?? project.preview_url;
+  if (!effectivePreviewUrl) {
+    throw new Error("A preview URL is required before requesting client approval.");
+  }
+
+  const { data: latestQa } = await supabase
+    .from("qa_runs")
+    .select("overall")
+    .eq("landing_page_project_id", projectId)
+    .eq("landing_page_version_id", versionId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!latestQa) {
+    throw new Error("Record QA for this exact version before requesting client approval.");
+  }
+  if (latestQa.overall === "fail") {
+    throw new Error("The latest QA run for this version failed.");
+  }
+
+  const { error: versionUpdateError } = await supabase
+    .from("landing_page_versions")
+    .update({ status: "submitted" })
+    .eq("id", versionId);
+  if (versionUpdateError) throw new Error(versionUpdateError.message);
+
+  const { error: approvalError } = await supabase.from("approvals").insert({
+    organisation_id: session.organisationId,
+    client_id: project.client_id,
+    subject_type: "landing_page",
+    subject_id: projectId,
+    landing_page_version_id: versionId,
+    requested_by: session.userId,
+    status: "pending",
+  });
+  if (approvalError) throw new Error(approvalError.message);
+
+  const { error: projectUpdateError } = await supabase
+    .from("landing_page_projects")
+    .update({
+      status: "client_approval",
+      preview_url: effectivePreviewUrl,
+      submitted_version_id: versionId,
+      draft_version_id: null,
+    } as never)
+    .eq("id", projectId);
+  if (projectUpdateError) throw new Error(projectUpdateError.message);
+
+  if (previewUrl) {
+    await supabase.from("deployments").insert({
+      organisation_id: session.organisationId,
+      landing_page_project_id: projectId,
+      landing_page_version_id: versionId,
+      environment: "preview",
+      provider: "manual",
+      url: previewUrl,
+      status: "succeeded",
+      deployment_kind: "publish",
+      triggered_by: session.userId,
+    });
+  }
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: "update",
+    resource: "landing_page_projects",
+    resourceId: projectId,
+    clientId: project.client_id,
+    metadata: { status: "client_approval", versionId },
+  });
+
+  revalidatePath("/landing-page-factory");
+  revalidatePath(`/landing-page-factory/${projectId}`);
+  revalidatePath("/client-portal");
+}
+
+export async function recordPerformanceRecord(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+
+  const projectId = str(formData, "projectId");
+  const metricDate = str(formData, "metricDate");
+  if (!projectId) throw new Error("Project is required");
+  if (!metricDate) throw new Error("Metric date is required");
+
+  const { data: project, error: projectError } = await supabase
+    .from("landing_page_projects")
+    .select("id, client_id")
+    .eq("id", projectId)
+    .single();
+  if (projectError) throw new Error(projectError.message);
+
+  await requirePermission(supabase, session.organisationId, "landing_page_factory", "update", project.client_id);
+
+  const { data: record, error } = await supabase
+    .from("landing_page_performance_records")
+    .insert({
+      organisation_id: session.organisationId,
+      client_id: project.client_id,
+      landing_page_project_id: projectId,
+      landing_page_version_id: str(formData, "versionId"),
+      campaign_id: str(formData, "campaignId"),
+      experiment_id: str(formData, "experimentId"),
+      metric_date: metricDate,
+      visits: Number(str(formData, "visits") ?? "0"),
+      leads: Number(str(formData, "leads") ?? "0"),
+      qualified_leads: Number(str(formData, "qualifiedLeads") ?? "0"),
+      bookings: Number(str(formData, "bookings") ?? "0"),
+      conversion_rate: str(formData, "conversionRate") ? Number(str(formData, "conversionRate")) : null,
+      revenue: Number(str(formData, "revenue") ?? "0"),
+      verified_learning: str(formData, "verifiedLearning"),
+      source: (str(formData, "source") as "manual" | "campaign_metrics" | "experiment" | "import" | null) ?? "manual",
+      created_by: session.userId,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: "create",
+    resource: "landing_page_performance_records",
+    resourceId: record.id,
+    clientId: project.client_id,
+    metadata: { projectId },
+  });
+
+  revalidatePath("/landing-page-factory");
+  revalidatePath(`/landing-page-factory/${projectId}`);
 }
 
 /**
@@ -404,26 +1057,32 @@ export async function publishPage(formData: FormData): Promise<void> {
 
   const { data: project, error: fetchError } = await supabase
     .from("landing_page_projects")
-    .select("id, name, status, client_id, created_by")
+    .select("id, name, status, client_id, created_by, submitted_version_id, published_version_id")
     .eq("id", projectId)
     .single();
   if (fetchError) throw new Error(fetchError.message);
 
   await requirePermission(supabase, session.organisationId, "landing_page_factory", "approve", project.client_id);
 
+  if (!project.submitted_version_id) {
+    throw new Error("No submitted version is attached to this page project.");
+  }
+
   const [{ data: latestQa }, { data: approval }] = await Promise.all([
     supabase
       .from("qa_runs")
-      .select("overall")
+      .select("overall, landing_page_version_id")
       .eq("landing_page_project_id", projectId)
+      .eq("landing_page_version_id", project.submitted_version_id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
     supabase
       .from("approvals")
-      .select("status")
+      .select("status, landing_page_version_id")
       .eq("subject_type", "landing_page")
       .eq("subject_id", projectId)
+      .eq("landing_page_version_id", project.submitted_version_id)
       .eq("status", "approved")
       .limit(1)
       .maybeSingle(),
@@ -433,24 +1092,47 @@ export async function publishPage(formData: FormData): Promise<void> {
     projectStatus: project.status,
     latestQaOverall: latestQa?.overall ?? null,
     clientApproved: Boolean(approval),
+    submittedVersionId: project.submitted_version_id,
+    latestQaVersionId: latestQa?.landing_page_version_id ?? null,
+    approvedVersionId: approval?.landing_page_version_id ?? null,
   });
   if (!gate.allowed) {
     throw new Error(`Publish blocked: ${gate.reasons.join(" ")}`);
   }
 
+  if (project.published_version_id && project.published_version_id !== project.submitted_version_id) {
+    await supabase
+      .from("landing_page_versions")
+      .update({ status: "archived" })
+      .eq("id", project.published_version_id);
+  }
+
   const { error } = await supabase
     .from("landing_page_projects")
-    .update({ status: "published", production_url: productionUrl })
+    .update({
+      status: "published",
+      production_url: productionUrl,
+      published_version_id: project.submitted_version_id,
+    } as never)
     .eq("id", projectId);
   if (error) throw new Error(error.message);
+
+  if (project.submitted_version_id) {
+    await supabase
+      .from("landing_page_versions")
+      .update({ status: "published", published_at: new Date().toISOString() })
+      .eq("id", project.submitted_version_id);
+  }
 
   await supabase.from("deployments").insert({
     organisation_id: session.organisationId,
     landing_page_project_id: projectId,
+    landing_page_version_id: project.submitted_version_id,
     environment: "production",
     provider: "manual",
     url: productionUrl,
     status: "succeeded",
+    deployment_kind: "publish",
     triggered_by: session.userId,
   });
 
@@ -477,5 +1159,90 @@ export async function publishPage(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/landing-page-factory");
+  revalidatePath(`/landing-page-factory/${projectId}`);
   revalidatePath("/client-portal");
+}
+
+export async function rollbackPublishedVersion(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+
+  const projectId = str(formData, "projectId");
+  const versionId = str(formData, "versionId");
+  const productionUrl = str(formData, "productionUrl");
+  if (!projectId || !versionId) throw new Error("Project and version are required");
+
+  const [{ data: project, error: projectError }, { data: version, error: versionError }] = await Promise.all([
+    supabase
+      .from("landing_page_projects")
+      .select("id, client_id, published_version_id, production_url")
+      .eq("id", projectId)
+      .single(),
+    supabase
+      .from("landing_page_versions")
+      .select("id, landing_page_project_id")
+      .eq("id", versionId)
+      .single(),
+  ]);
+  if (projectError) throw new Error(projectError.message);
+  if (versionError) throw new Error(versionError.message);
+
+  await requirePermission(supabase, session.organisationId, "landing_page_factory", "approve", project.client_id);
+
+  if (version.landing_page_project_id !== projectId) {
+    throw new Error("That version does not belong to this page project.");
+  }
+
+  const effectiveProductionUrl = productionUrl ?? project.production_url;
+  if (!effectiveProductionUrl) {
+    throw new Error("A production URL is required to record the rollback.");
+  }
+
+  if (project.published_version_id && project.published_version_id !== versionId) {
+    await supabase
+      .from("landing_page_versions")
+      .update({ status: "archived" })
+      .eq("id", project.published_version_id);
+  }
+
+  await supabase
+    .from("landing_page_versions")
+    .update({ status: "published", published_at: new Date().toISOString() })
+    .eq("id", versionId);
+
+  const { error } = await supabase
+    .from("landing_page_projects")
+    .update({
+      status: "published",
+      production_url: effectiveProductionUrl,
+      published_version_id: versionId,
+      submitted_version_id: versionId,
+    } as never)
+    .eq("id", projectId);
+  if (error) throw new Error(error.message);
+
+  await supabase.from("deployments").insert({
+    organisation_id: session.organisationId,
+    landing_page_project_id: projectId,
+    landing_page_version_id: versionId,
+    environment: "production",
+    provider: "manual",
+    url: effectiveProductionUrl,
+    status: "succeeded",
+    deployment_kind: "rollback",
+    triggered_by: session.userId,
+  });
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: "external_action",
+    resource: "landing_page_projects",
+    resourceId: projectId,
+    clientId: project.client_id,
+    metadata: { rollbackVersionId: versionId, productionUrl: effectiveProductionUrl },
+  });
+
+  revalidatePath("/landing-page-factory");
+  revalidatePath(`/landing-page-factory/${projectId}`);
 }

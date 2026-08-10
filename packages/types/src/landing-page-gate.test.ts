@@ -31,7 +31,14 @@ describe("summariseQaRun", () => {
 });
 
 describe("canPublishLandingPage", () => {
-  const ready = { projectStatus: "approved_to_publish", latestQaOverall: "pass" as const, clientApproved: true };
+  const ready = {
+    projectStatus: "approved_to_publish",
+    latestQaOverall: "pass" as const,
+    clientApproved: true,
+    submittedVersionId: "version-1",
+    latestQaVersionId: "version-1",
+    approvedVersionId: "version-1",
+  };
 
   it("allows publish only when all three gates pass", () => {
     expect(canPublishLandingPage(ready)).toEqual({ allowed: true, reasons: [] });
@@ -62,5 +69,23 @@ describe("canPublishLandingPage", () => {
 
   it("allows publish with a warning-level QA run (warnings are visible, not blocking)", () => {
     expect(canPublishLandingPage({ ...ready, latestQaOverall: "warning" }).allowed).toBe(true);
+  });
+
+  it("blocks when no version has been submitted", () => {
+    const result = canPublishLandingPage({ ...ready, submittedVersionId: null, latestQaVersionId: null, approvedVersionId: null });
+    expect(result.allowed).toBe(false);
+    expect(result.reasons.join(" ")).toContain("submitted");
+  });
+
+  it("blocks when the latest QA run was recorded for a different version", () => {
+    const result = canPublishLandingPage({ ...ready, latestQaVersionId: "version-2" });
+    expect(result.allowed).toBe(false);
+    expect(result.reasons.join(" ")).toContain("latest QA run");
+  });
+
+  it("blocks when client approval was recorded for a different version", () => {
+    const result = canPublishLandingPage({ ...ready, approvedVersionId: "version-2" });
+    expect(result.allowed).toBe(false);
+    expect(result.reasons.join(" ")).toContain("different page version");
   });
 });

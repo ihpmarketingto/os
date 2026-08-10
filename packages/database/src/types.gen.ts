@@ -611,6 +611,7 @@ export interface Database {
           client_id: string;
           subject_type: "content_item" | "document" | "report" | "landing_page";
           subject_id: string;
+          landing_page_version_id: string | null;
           requested_by: string | null;
           status: "pending" | "approved" | "changes_requested";
           decision_notes: string | null;
@@ -1300,9 +1301,13 @@ export interface Database {
           organisation_id: string;
           client_id: string;
           brief_id: string;
+          project_id: string | null;
           name: string;
           generation_mode: "clone_and_adapt" | "build_from_components" | "build_from_strategy" | "improve_existing";
           reference_build_project_id: string | null;
+          draft_version_id: string | null;
+          submitted_version_id: string | null;
+          published_version_id: string | null;
           repository_url: string | null;
           branch: string | null;
           preview_url: string | null;
@@ -1333,11 +1338,118 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["landing_page_projects"]["Row"]>;
         Relationships: [];
       };
+      landing_page_templates: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          name: string;
+          slug: string;
+          description: string | null;
+          category: "offer_landing_page" | "lead_gen" | "event_registration" | "product_launch";
+          source: "native" | "cloned" | "imported";
+          cloned_from_template_id: string | null;
+          template_key: string;
+          structure: Json;
+          defaults: Json;
+          preview_config: Json;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["landing_page_templates"]["Row"]> & {
+          organisation_id: string;
+          name: string;
+          slug: string;
+          template_key: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["landing_page_templates"]["Row"]>;
+        Relationships: [];
+      };
+      landing_page_versions: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          landing_page_project_id: string;
+          template_id: string | null;
+          template_key: string;
+          template_name: string;
+          version_number: number;
+          version_name: string;
+          status: "draft" | "submitted" | "approved" | "published" | "changes_requested" | "archived";
+          title: string;
+          slug: string;
+          subdomain: string | null;
+          domain: string | null;
+          theme_settings: Json;
+          sections: Json;
+          form_settings: Json;
+          tracking_settings: Json;
+          seo_settings: Json;
+          social_settings: Json;
+          asset_slots: Json;
+          source_context: Json;
+          validation_results: Json;
+          leakage_check_passed: boolean;
+          source_ai_run_id: string | null;
+          created_by: string | null;
+          approved_at: string | null;
+          published_at: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["landing_page_versions"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          landing_page_project_id: string;
+          template_key: string;
+          template_name: string;
+          version_number: number;
+          version_name: string;
+          title: string;
+          slug: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["landing_page_versions"]["Row"]>;
+        Relationships: [];
+      };
+      landing_page_performance_records: {
+        Row: {
+          id: string;
+          organisation_id: string;
+          client_id: string;
+          landing_page_project_id: string;
+          landing_page_version_id: string | null;
+          campaign_id: string | null;
+          experiment_id: string | null;
+          metric_date: string;
+          visits: number;
+          leads: number;
+          qualified_leads: number;
+          bookings: number;
+          conversion_rate: number | null;
+          revenue: number;
+          verified_learning: string | null;
+          source: "manual" | "campaign_metrics" | "experiment" | "import";
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["landing_page_performance_records"]["Row"]> & {
+          organisation_id: string;
+          client_id: string;
+          landing_page_project_id: string;
+          metric_date: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["landing_page_performance_records"]["Row"]>;
+        Relationships: [];
+      };
       qa_runs: {
         Row: {
           id: string;
           organisation_id: string;
           landing_page_project_id: string;
+          landing_page_version_id: string | null;
           run_by: string | null;
           overall: "pass" | "warning" | "fail";
           items: Json;
@@ -1930,10 +2042,12 @@ export interface Database {
           id: string;
           organisation_id: string;
           landing_page_project_id: string;
+          landing_page_version_id: string | null;
           environment: "preview" | "production";
           provider: "vercel" | "netlify" | "cloudflare_pages" | "replit" | "manual";
           url: string | null;
           status: "pending" | "succeeded" | "failed";
+          deployment_kind: "publish" | "rollback";
           triggered_by: string | null;
           created_at: string;
         };

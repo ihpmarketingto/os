@@ -5,6 +5,7 @@ export * from "./lead-score";
 export * from "./finance-math";
 export * from "./channel-metrics";
 export * from "./landing-page-gate";
+export * from "./landing-page-factory";
 export * from "./automation-rules";
 export * from "./service-catalogue";
 export * from "./ad-creative";

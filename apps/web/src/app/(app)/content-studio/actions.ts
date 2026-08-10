@@ -116,7 +116,7 @@ export async function decideApproval(
     })
     .eq("id", approvalId)
     .eq("status", "pending")
-    .select("id, subject_type, subject_id, client_id, requested_by")
+    .select("id, subject_type, subject_id, client_id, requested_by, landing_page_version_id")
     .maybeSingle();
   if (approvalError) throw new Error(approvalError.message);
   if (!decided) throw new Error("This approval was already decided or you do not have access to it.");
@@ -133,9 +133,33 @@ export async function decideApproval(
       .eq("id", decided.subject_id);
     if (contentError) throw new Error(contentError.message);
   } else if (decided.subject_type === "landing_page") {
+    if (!decided.landing_page_version_id) {
+      throw new Error("This landing page approval is missing the submitted version reference.");
+    }
+
+    const decidedAt = new Date().toISOString();
+    const { error: versionError } = await admin
+      .from("landing_page_versions")
+      .update(
+        decision === "approved"
+          ? { status: "approved", approved_at: decidedAt }
+          : { status: "changes_requested", approved_at: null },
+      )
+      .eq("id", decided.landing_page_version_id)
+      .eq("landing_page_project_id", decided.subject_id);
+    if (versionError) throw new Error(versionError.message);
+
     const { error: pageError } = await admin
       .from("landing_page_projects")
-      .update({ status: decision === "approved" ? "approved_to_publish" : "preview" })
+      .update(
+        decision === "approved"
+          ? { status: "approved_to_publish", draft_version_id: null }
+          : {
+              status: "preview",
+              draft_version_id: decided.landing_page_version_id,
+              submitted_version_id: null,
+            },
+      )
       .eq("id", decided.subject_id)
       .eq("status", "client_approval");
     if (pageError) throw new Error(pageError.message);
@@ -159,7 +183,7 @@ export async function decideApproval(
       await notifyUsers(admin, session.organisationId, [decided.requested_by], {
         title: decision === "approved" ? "Client approved your request" : "Client requested changes",
         body: `${decided.subject_type.replace(/_/g, " ")} decision recorded.`,
-        href: decided.subject_type === "landing_page" ? "/landing-page-factory" : "/content-studio",
+        href: decided.subject_type === "landing_page" ? `/landing-page-factory/${decided.subject_id}` : "/content-studio",
         clientId: decided.client_id,
       });
     }
@@ -168,4 +192,7 @@ export async function decideApproval(
   revalidatePath("/content-studio");
   revalidatePath("/client-portal");
   revalidatePath("/landing-page-factory");
+  if (decided.subject_type === "landing_page") {
+    revalidatePath(`/landing-page-factory/${decided.subject_id}`);
+  }
 }
