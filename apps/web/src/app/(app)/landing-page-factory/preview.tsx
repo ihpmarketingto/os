@@ -49,6 +49,11 @@ function isPlaceholderUrl(value: string | null | undefined): boolean {
   return Boolean(value && /example\.com/i.test(value));
 }
 
+function sanitizePreviewHref(href: string | null | undefined): string | null {
+  if (!href || isPlaceholderUrl(href)) return null;
+  return href;
+}
+
 function isExternalHref(href: string): boolean {
   return /^https?:\/\//i.test(href);
 }
@@ -56,9 +61,9 @@ function isExternalHref(href: string): boolean {
 function resolvePrimaryCtaHref(draft: LandingPageDraft): string | null {
   switch (draft.form.ctaType) {
     case "booking_link":
-      return isPlaceholderUrl(draft.form.bookingUrl) ? null : draft.form.bookingUrl;
+      return sanitizePreviewHref(draft.form.bookingUrl);
     case "external_checkout":
-      return isPlaceholderUrl(draft.form.externalCheckoutUrl) ? null : draft.form.externalCheckoutUrl;
+      return sanitizePreviewHref(draft.form.externalCheckoutUrl);
     case "lead_form":
       return "#lead-form";
     default:
@@ -225,7 +230,7 @@ function AssetPlaceholder({
   dark?: boolean;
 }) {
   const labelIsScaffolding = isScaffoldingCopy(label);
-  const displayLabel = displayCopy(label, imageUrl ? title : "Add an approved image here.") ?? (imageUrl ? title : "Add an approved image here.");
+  const displayLabel = displayCopy(label, imageUrl ? title : "Approved visual pending") ?? (imageUrl ? title : "Approved visual pending");
   const emptyLabelTone = dark ? "text-white/84" : labelIsScaffolding ? "text-black/52 italic" : "text-black/68";
   const emptyHelperTone = dark ? "text-white/65" : "text-black/46";
   return (
@@ -283,7 +288,7 @@ function AssetPlaceholder({
                   {displayLabel}
                 </p>
                 <p className={cn("mt-2 text-xs leading-6", emptyHelperTone)}>
-                  Add an approved asset here to give this section real proof and texture.
+                  Reserved for client-approved proof imagery.
                 </p>
               </div>
             </div>
@@ -384,7 +389,7 @@ function QuoteCard({
 
 function ProcessCard({ item, index }: { item: LandingPageSection["items"][number]; index: number }) {
   const title = displayCopy(item.title, `Step ${index + 1}`) ?? `Step ${index + 1}`;
-  const body = displayCopy(item.body, "Keep this step simple so the path from click to outcome feels obvious.");
+  const body = displayCopy(item.body, "A short step detail can live here.");
   return (
     <div className="relative rounded-[1.7rem] border border-[#e4d7cd] bg-white/96 p-6 shadow-[0_22px_55px_-42px_rgba(20,12,18,0.42)]">
       <div className="mb-4 flex items-center gap-3">
@@ -403,7 +408,7 @@ function ProcessCard({ item, index }: { item: LandingPageSection["items"][number
 
 function FaqCard({ item }: { item: LandingPageSection["items"][number] }) {
   const title = displayCopy(item.title, "Common question") ?? "Common question";
-  const body = displayCopy(item.body, "Use this answer to remove friction and make the next step feel clear.");
+  const body = displayCopy(item.body, "This answer should make the next step feel clear.");
   return (
     <div className="rounded-[1.55rem] border border-[#e5d8ce] bg-white/96 px-5 py-5 shadow-[0_20px_45px_-38px_rgba(20,12,18,0.38)]">
       <div className="flex items-start justify-between gap-4">
@@ -440,14 +445,14 @@ function PreviewSection({
         "Add a secondary visual, brand detail, or close-up proof image here.",
       );
       const heroItems = section.items.slice(0, 3);
-      const heroPrimaryHref = section.ctaHref ?? primaryHref;
+      const heroPrimaryHref = sanitizePreviewHref(section.ctaHref) ?? primaryHref;
       const resultsHref = resolveSectionHref(draft, "results") ?? heroPrimaryHref;
       const offerContext = resolveOfferContext(draft);
       const heroHeadline = displayCopy(section.headline, "Make the outcome feel immediate");
       const heroSubheadline = displayCopy(section.subheadline, "Lead with the offer, the audience, and the clearest next step.");
       const heroBody = displayCopy(section.body, "Keep the opening crisp: outcome, trust cue, and a single conversion path.");
       const socialProofLabel = displayCopy(draft.social.socialProofLabel, "Real proof. Clear promise. Repeated CTA.") ?? "Real proof. Clear promise. Repeated CTA.";
-      const heroDetailLabel = displayCopy(heroDetailVisual.label, "Use a detail crop, brand moment, or close-up proof image.") ?? "Use a detail crop, brand moment, or close-up proof image.";
+      const heroDetailLabel = displayCopy(heroDetailVisual.label, "Supporting proof visual") ?? "Supporting proof visual";
       return (
         <section
           className="relative overflow-hidden rounded-[2.8rem] border border-[#e6d8cf] bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(250,243,237,0.98))] px-6 py-7 shadow-[0_34px_95px_-56px_rgba(20,12,18,0.58)] md:px-9 md:py-9"
@@ -500,9 +505,9 @@ function PreviewSection({
                       <div>
                         {item.meta ? <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/36">{item.meta}</p> : null}
                         <p className="mt-1 font-medium text-black/86">{displayCopy(item.title, item.meta ?? "Approved proof point") ?? (item.meta ?? "Approved proof point")}</p>
-                        {displayCopy(item.body, "Use one clear proof point that makes the promised outcome feel more believable.") ? (
+                        {displayCopy(item.body, "A short proof detail can live here.") ? (
                           <p className="mt-2 text-sm leading-7 text-black/58">
-                            {displayCopy(item.body, "Use one clear proof point that makes the promised outcome feel more believable.")}
+                            {displayCopy(item.body, "A short proof detail can live here.")}
                           </p>
                         ) : null}
                       </div>
@@ -555,7 +560,7 @@ function PreviewSection({
                         <div>
                           <p className="max-w-[15rem] text-sm leading-6 text-black/62">{heroDetailLabel}</p>
                           {!heroDetailVisual.previewUrl ? (
-                            <p className="mt-1 text-xs text-black/42">Use a detail crop, brand moment, or close-up proof image.</p>
+                            <p className="mt-1 text-xs text-black/42">Reserved for client-approved detail imagery.</p>
                           ) : null}
                         </div>
                       </div>
@@ -598,9 +603,9 @@ function PreviewSection({
                   <div key={item.id} className="rounded-[1.45rem] border border-[#e5d8ce] bg-white/94 px-4 py-4 shadow-[0_20px_44px_-38px_rgba(20,12,18,0.38)]">
                     {item.meta ? <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[color:var(--lpf-primary)]">{item.meta}</p> : null}
                     <p className="mt-2 font-medium text-black/86">{displayCopy(item.title, item.meta ?? "Approved proof point") ?? (item.meta ?? "Approved proof point")}</p>
-                    {displayCopy(item.body, "Use a specific result or reviewed claim that helps the visitor picture the outcome.") ? (
+                    {displayCopy(item.body, "A supporting detail can live here.") ? (
                       <p className="mt-2 text-sm leading-7 text-black/60">
-                        {displayCopy(item.body, "Use a specific result or reviewed claim that helps the visitor picture the outcome.")}
+                        {displayCopy(item.body, "A supporting detail can live here.")}
                       </p>
                     ) : null}
                   </div>
@@ -655,7 +660,7 @@ function PreviewSection({
       );
     }
     case "offer": {
-      const offerPrimaryHref = section.ctaHref ?? primaryHref;
+      const offerPrimaryHref = sanitizePreviewHref(section.ctaHref) ?? primaryHref;
       const compareHref = resolveSectionHref(draft, "faq") ?? resolveSectionHref(draft, "testimonials") ?? offerPrimaryHref;
       return (
         <section className="rounded-[2.35rem] border border-[#e6dad0] bg-white px-6 py-7 shadow-[0_28px_75px_-50px_rgba(20,12,18,0.46)] md:px-8 md:py-8" id={section.id}>
@@ -663,7 +668,7 @@ function PreviewSection({
             <div className="space-y-6">
               <SectionIntro
                 section={section}
-                bodyFallback="Clarify what is included, how booking works, and why this offer feels considered."
+                bodyFallback="Everything included, the investment, and the next step are outlined here."
               />
               {sectionHighlights(section, ["What is included", "How booking works", "Why this offer feels worth it"]).length > 0 ? (
                 <div className="grid gap-3">
@@ -687,9 +692,9 @@ function PreviewSection({
                     <div key={item.id} className="rounded-[1.3rem] border border-[#e5d8ce] bg-white/92 px-4 py-4">
                       {item.meta ? <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--lpf-primary)]">{item.meta}</p> : null}
                       <p className="mt-2 font-medium text-black/86">{displayCopy(item.title, item.meta ?? "Included detail") ?? (item.meta ?? "Included detail")}</p>
-                      {displayCopy(item.body, "Clarify the deliverable, the booking flow, and what the visitor gets once they commit.") ? (
+                      {displayCopy(item.body, "Included detail pending.") ? (
                         <p className="mt-2 text-sm leading-7 text-black/60">
-                          {displayCopy(item.body, "Clarify the deliverable, the booking flow, and what the visitor gets once they commit.")}
+                          {displayCopy(item.body, "Included detail pending.")}
                         </p>
                       ) : null}
                     </div>
@@ -700,9 +705,9 @@ function PreviewSection({
               <div className="rounded-[1.85rem] border border-black/0 bg-[color:var(--lpf-primary)] px-5 py-5 text-white shadow-[0_24px_65px_-42px_rgba(20,12,18,0.56)]">
                 <p className="text-[10px] uppercase tracking-[0.22em] text-white/62">Investment and CTA</p>
                 <p className="mt-3 font-heading text-[2.35rem] leading-tight tracking-[-0.02em]">{section.subheadline ?? "Clarify the investment"}</p>
-                {displayCopy(section.body, "Clarify what the visitor gets, why it is worth the investment, and what happens after they book.") ? (
+                {displayCopy(section.body, "What the visitor gets and what happens next are summarized here.") ? (
                   <p className="mt-3 text-sm leading-7 text-white/80">
-                    {displayCopy(section.body, "Clarify what the visitor gets, why it is worth the investment, and what happens after they book.")}
+                    {displayCopy(section.body, "What the visitor gets and what happens next are summarized here.")}
                   </p>
                 ) : null}
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -716,7 +721,7 @@ function PreviewSection({
       );
     }
     case "promise": {
-      const promisePrimaryHref = section.ctaHref ?? primaryHref;
+      const promisePrimaryHref = sanitizePreviewHref(section.ctaHref) ?? primaryHref;
       return (
         <section
           className="overflow-hidden rounded-[2.3rem] border border-[#eadccf] bg-[linear-gradient(140deg,rgba(255,248,244,0.98),rgba(255,255,255,0.94))] px-6 py-7 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.44)] md:px-8"
@@ -727,7 +732,7 @@ function PreviewSection({
               <SectionIntro
                 section={section}
                 headlineFallback="Lower the fear before the click"
-                bodyFallback="Name the concern, explain the safeguard, and make the next step feel low-risk."
+                bodyFallback="The final reassurance belongs here."
               />
               {section.ctaLabel ? (
                 <div className="pt-2">
@@ -737,7 +742,7 @@ function PreviewSection({
             </div>
 
             <div className="grid gap-3">
-              {sectionHighlights(section, ["Lower the fear", "Name the concern", "Give the visitor a reason to trust the next step"]).map((bullet) => (
+              {sectionHighlights(section, ["Low-pressure next step", "Clear expectations", "Built-in reassurance"]).map((bullet) => (
                 <div key={bullet} className="rounded-[1.45rem] border border-[#e5d8ce] bg-white/94 px-5 py-4 text-sm leading-7 text-black/66 shadow-[0_18px_45px_-38px_rgba(20,12,18,0.38)]">
                   {bullet}
                 </div>
@@ -765,12 +770,12 @@ function PreviewSection({
       return (
         <section className="rounded-[2.2rem] border border-[#e8dbd1] bg-[rgba(255,251,247,0.96)] px-6 py-7 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.44)] md:px-8 md:py-8" id={section.id}>
           <div className="space-y-6">
-            <SectionIntro
-              section={section}
-              align="center"
-              headlineFallback="Proof that feels personal and believable"
-              bodyFallback="Use approved reviews that speak to comfort, clarity, and the result visitors actually want."
-            />
+              <SectionIntro
+                section={section}
+                align="center"
+                headlineFallback="Proof that feels personal and believable"
+                bodyFallback="Approved reviews reinforce comfort, clarity, and confidence in the outcome."
+              />
             <div className="grid gap-4 xl:grid-cols-3">
               {section.items.map((item) => (
                 <QuoteCard key={item.id} title={item.title} body={item.body} meta={item.meta} />
@@ -788,7 +793,7 @@ function PreviewSection({
               <SectionIntro
                 section={section}
                 headlineFallback="The questions people ask before they book"
-                bodyFallback="Answer the concerns that usually slow the conversion."
+                bodyFallback="The last few questions before booking are answered here."
               />
               {section.bullets.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
@@ -817,17 +822,17 @@ function PreviewSection({
         "trust_visual",
         "Use this slot for the studio, founder, venue, or another trust-building image.",
       );
-      const locationPrimaryHref = section.ctaHref ?? primaryHref;
+      const locationPrimaryHref = sanitizePreviewHref(section.ctaHref) ?? primaryHref;
       return (
         <section className="rounded-[2.2rem] border border-[#e6dad0] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,244,239,0.96))] px-6 py-7 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.44)] md:px-8 md:py-8" id={section.id}>
           <div className="grid gap-8 xl:grid-cols-[0.94fr_1.06fr]">
             <div className="space-y-5">
               <SectionIntro
                 section={section}
-                bodyFallback="Use this section for trust cues, service area, and final booking guidance."
+                bodyFallback="Service area details, policies, and final reassurance live here."
               />
               <div className="flex flex-wrap gap-2">
-                {sectionHighlights(section, ["Add studio or service area context", "Reassure around policies", "Keep the final click clear"]).map((bullet) => (
+                {sectionHighlights(section, ["Service area details", "Booking policy reminders", "Final reassurance"]).map((bullet) => (
                   <PreviewPill key={bullet} subtle>
                     {bullet}
                   </PreviewPill>
@@ -856,9 +861,9 @@ function PreviewSection({
                     <div key={item.id} className="rounded-[1.3rem] border border-[#e5d8ce] bg-[color:var(--lpf-surface)] px-4 py-4">
                       {item.meta ? <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--lpf-primary)]">{item.meta}</p> : null}
                       <p className="mt-2 font-medium text-black/86">{displayCopy(item.title, item.meta ?? "Trust detail") ?? (item.meta ?? "Trust detail")}</p>
-                      {displayCopy(item.body, "Use a trust cue here: service area, studio detail, policy, or final reassurance.") ? (
+                      {displayCopy(item.body, "A short trust detail can live here.") ? (
                         <p className="mt-2 text-sm leading-7 text-black/60">
-                          {displayCopy(item.body, "Use a trust cue here: service area, studio detail, policy, or final reassurance.")}
+                          {displayCopy(item.body, "A short trust detail can live here.")}
                         </p>
                       ) : null}
                     </div>
@@ -871,7 +876,7 @@ function PreviewSection({
       );
     }
     case "final_cta": {
-      const finalPrimaryHref = section.ctaHref ?? primaryHref;
+      const finalPrimaryHref = sanitizePreviewHref(section.ctaHref) ?? primaryHref;
       const faqHref = resolveSectionHref(draft, "faq") ?? resolveSectionHref(draft, "location") ?? finalPrimaryHref;
       return (
         <section
