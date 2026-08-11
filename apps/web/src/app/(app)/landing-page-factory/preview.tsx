@@ -45,6 +45,10 @@ function sectionHighlights(section: LandingPageSection, fallback: string[]): str
   return highlights.length > 0 ? highlights : fallback;
 }
 
+function isPlaceholderUrl(value: string | null | undefined): boolean {
+  return Boolean(value && /example\.com/i.test(value));
+}
+
 function isExternalHref(href: string): boolean {
   return /^https?:\/\//i.test(href);
 }
@@ -52,9 +56,9 @@ function isExternalHref(href: string): boolean {
 function resolvePrimaryCtaHref(draft: LandingPageDraft): string | null {
   switch (draft.form.ctaType) {
     case "booking_link":
-      return draft.form.bookingUrl;
+      return isPlaceholderUrl(draft.form.bookingUrl) ? null : draft.form.bookingUrl;
     case "external_checkout":
-      return draft.form.externalCheckoutUrl;
+      return isPlaceholderUrl(draft.form.externalCheckoutUrl) ? null : draft.form.externalCheckoutUrl;
     case "lead_form":
       return "#lead-form";
     default:
@@ -92,7 +96,7 @@ function isScaffoldingCopy(value: string | null | undefined): boolean {
   if (/^(template landing page|hero image|image slot|results image \d+|healed result|booking|time|trust)$/.test(normalised)) {
     return true;
   }
-  if (/^(what conversion should happen|add any reviewed claims|add approved proof point)/.test(normalised)) {
+  if (/^(what conversion should happen|add any reviewed claims|add approved proof point|traffic source:)/.test(normalised)) {
     return true;
   }
   return /^(use|add|connect|clarify|spell out|show|make|attach|answer|point visitors to|list |repeat |review )/.test(normalised);
@@ -115,7 +119,7 @@ function displayCopy(value: string | null | undefined, fallback?: string | null)
 
 function resolveDestinationLabel(draft: LandingPageDraft): string {
   const destination = draft.form.bookingUrl ?? draft.form.externalCheckoutUrl;
-  if (destination && !/example\.com/i.test(destination)) {
+  if (destination && !isPlaceholderUrl(destination)) {
     return destination;
   }
 
@@ -221,6 +225,7 @@ function AssetPlaceholder({
   dark?: boolean;
 }) {
   const labelIsScaffolding = isScaffoldingCopy(label);
+  const displayLabel = displayCopy(label, imageUrl ? title : "Add an approved image here.") ?? (imageUrl ? title : "Add an approved image here.");
   const emptyLabelTone = dark ? "text-white/84" : labelIsScaffolding ? "text-black/52 italic" : "text-black/68";
   const emptyHelperTone = dark ? "text-white/65" : "text-black/46";
   return (
@@ -269,13 +274,13 @@ function AssetPlaceholder({
         <div className="relative flex h-full flex-col justify-between">
           {imageUrl ? (
             <div className={cn("mt-auto self-start rounded-full px-3 py-1.5 text-[11px]", dark ? "bg-black/32 text-white/84" : "bg-white/86 text-black/58")}>
-              {label}
+              {displayLabel}
             </div>
           ) : (
             <div className="flex h-full items-end">
               <div>
                 <p className={cn("max-w-[16rem] text-base leading-6", emptyLabelTone)}>
-                  {label}
+                  {displayLabel}
                 </p>
                 <p className={cn("mt-2 text-xs leading-6", emptyHelperTone)}>
                   Add an approved asset here to give this section real proof and texture.
