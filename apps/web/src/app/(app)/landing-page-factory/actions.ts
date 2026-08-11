@@ -3,10 +3,13 @@
 import { revalidatePath } from "next/cache";
 import {
   buildLandingPageTemplateDraftFromComponents,
+  buildLandingPageProductionUrl,
+  buildLandingPagePreviewUrl,
   canPublishLandingPage,
   landingPageSectionSchema,
   mapLandingPageSectionKindToReusableCategory,
   normaliseLandingPageDraft,
+  resolveLandingPagePreviewVersionId,
   summariseQaRun,
   validateLandingPageClientIsolation,
   type LandingPageDraft,
@@ -16,6 +19,7 @@ import {
 import { requirePermission, writeAuditLog, type Json } from "@ihp/database";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { serverEnv } from "@/lib/env/server";
 import { slugify } from "@/lib/utils";
 import { isRuleEnabled, notifyUsers, recordRun } from "@/lib/automations/engine";
 import { buildDraftFromPreset, buildPresetSkeleton } from "./template-presets";
@@ -48,6 +52,32 @@ function deploymentProviderFrom(value: string | null): DeploymentProvider {
 
 function templateKeyFromName(value: string): string {
   return slugify(value).replace(/-/g, "_");
+}
+
+function nativePreviewUrlFor(input: {
+  projectId: string;
+  projectStatus: string;
+  draftVersionId?: string | null;
+  submittedVersionId?: string | null;
+  publishedVersionId?: string | null;
+  previewShareToken?: string | null;
+}): string | null {
+  if (!input.previewShareToken) return null;
+
+  const versionId = resolveLandingPagePreviewVersionId({
+    projectStatus: input.projectStatus,
+    draftVersionId: input.draftVersionId,
+    submittedVersionId: input.submittedVersionId,
+    publishedVersionId: input.publishedVersionId,
+  });
+  if (!versionId) return null;
+
+  return buildLandingPagePreviewUrl({
+    appUrl: serverEnv.APP_URL,
+    projectId: input.projectId,
+    versionId,
+    previewShareToken: input.previewShareToken,
+  });
 }
 
 function describeEditableFields() {
@@ -538,7 +568,7 @@ export async function createPageProject(formData: FormData): Promise<void> {
       branch: str(formData, "branch"),
       created_by: session.userId,
     })
-    .select("id, client_id")
+    .select("id, client_id, preview_share_token")
     .single();
   if (error) throw new Error(error.message);
 
@@ -614,9 +644,18 @@ export async function createPageProject(formData: FormData): Promise<void> {
     .single();
   if (versionError) throw new Error(versionError.message);
 
+  const previewUrl = nativePreviewUrlFor({
+    projectId: project.id,
+    projectStatus: "planning",
+    draftVersionId: version.id,
+    submittedVersionId: null,
+    publishedVersionId: null,
+    previewShareToken: project.preview_share_token,
+  });
+
   const { error: projectUpdateError } = await supabase
     .from("landing_page_projects")
-    .update({ draft_version_id: version.id } as never)
+    .update(({ draft_version_id: version.id, ...(previewUrl ? { preview_url: previewUrl } : {}) }) as never)
     .eq("id", project.id);
   if (projectUpdateError) throw new Error(projectUpdateError.message);
 
@@ -668,7 +707,7 @@ export async function advancePageStatus(
 
   const { data: project, error: fetchError } = await supabase
     .from("landing_page_projects")
-    .select("id, name, status, client_id, preview_url")
+    .select("id, name, status, client_id, draft_version_id, submitted_version_id, published_version_id, preview_share_token, preview_url")
     .eq("id", projectId)
     .single();
   if (fetchError) throw new Error(fetchError.message);
@@ -679,7 +718,17 @@ export async function advancePageStatus(
     throw new Error(`A page cannot move from ${project.status} to ${nextStatus}.`);
   }
 
-  const effectivePreviewUrl = previewUrl?.trim() || project.preview_url;
+  const effectivePreviewUrl =
+    previewUrl?.trim() ||
+    nativePreviewUrlFor({
+      projectId: project.id,
+      projectStatus: nextStatus,
+      draftVersionId: project.draft_version_id,
+      submittedVersionId: project.submitted_version_id,
+      publishedVersionId: project.published_version_id,
+      previewShareToken: project.preview_share_token,
+    }) ||
+    project.preview_url;
 
   if (nextStatus === "client_approval") {
     throw new Error("Submit an exact page version for approval from the page editor.");
@@ -959,7 +1008,7 @@ export async function saveDraftVersion(formData: FormData): Promise<{ versionId:
 
   const { data: project, error: projectError } = await supabase
     .from("landing_page_projects")
-    .select("id, client_id")
+    .select("id, client_id, status, submitted_version_id, published_version_id, preview_share_token")
     .eq("id", projectId)
     .single();
   if (projectError) throw new Error(projectError.message);
@@ -1046,9 +1095,18 @@ export async function saveDraftVersion(formData: FormData): Promise<{ versionId:
     if (error) throw new Error(error.message);
   }
 
+  const nativePreviewUrl = nativePreviewUrlFor({
+    projectId,
+    projectStatus: project.status,
+    draftVersionId: versionId,
+    submittedVersionId: project.submitted_version_id,
+    publishedVersionId: project.published_version_id,
+    previewShareToken: project.preview_share_token,
+  });
+
   const { error: projectUpdateError } = await supabase
     .from("landing_page_projects")
-    .update({ draft_version_id: versionId } as never)
+    .update(({ draft_version_id: versionId, ...(nativePreviewUrl ? { preview_url: nativePreviewUrl } : {}) }) as never)
     .eq("id", projectId);
   if (projectUpdateError) throw new Error(projectUpdateError.message);
 
@@ -1079,7 +1137,7 @@ export async function submitVersionForApproval(formData: FormData): Promise<void
   const [{ data: project, error: projectError }, { data: version, error: versionError }, { data: pendingApproval }] = await Promise.all([
     supabase
       .from("landing_page_projects")
-      .select("id, client_id, status, preview_url")
+      .select("id, client_id, status, preview_url, preview_share_token")
       .eq("id", projectId)
       .single(),
     supabase
@@ -1116,7 +1174,17 @@ export async function submitVersionForApproval(formData: FormData): Promise<void
     throw new Error("There is already a pending approval for this page project.");
   }
 
-  const effectivePreviewUrl = previewUrl ?? project.preview_url;
+  const effectivePreviewUrl =
+    previewUrl ??
+    (project.preview_share_token
+      ? buildLandingPagePreviewUrl({
+          appUrl: serverEnv.APP_URL,
+          projectId,
+          versionId,
+          previewShareToken: project.preview_share_token,
+        })
+      : null) ??
+    project.preview_url;
   if (!effectivePreviewUrl) {
     throw new Error("A preview URL is required before requesting client approval.");
   }
@@ -1247,7 +1315,7 @@ export async function publishPage(formData: FormData): Promise<void> {
   const projectId = str(formData, "projectId");
   const productionUrl = str(formData, "productionUrl");
   const provider = deploymentProviderFrom(str(formData, "provider"));
-  if (!projectId || !productionUrl) throw new Error("Project and production URL are required");
+  if (!projectId) throw new Error("Project is required");
 
   const { data: project, error: fetchError } = await supabase
     .from("landing_page_projects")
@@ -1262,7 +1330,7 @@ export async function publishPage(formData: FormData): Promise<void> {
     throw new Error("No submitted version is attached to this page project.");
   }
 
-  const [{ data: latestQa }, { data: approval }] = await Promise.all([
+  const [{ data: latestQa }, { data: approval }, { data: submittedVersion, error: submittedVersionError }] = await Promise.all([
     supabase
       .from("qa_runs")
       .select("overall, landing_page_version_id")
@@ -1280,7 +1348,14 @@ export async function publishPage(formData: FormData): Promise<void> {
       .eq("status", "approved")
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("landing_page_versions")
+      .select("id, slug")
+      .eq("id", project.submitted_version_id)
+      .eq("landing_page_project_id", projectId)
+      .single(),
   ]);
+  if (submittedVersionError) throw new Error(submittedVersionError.message);
 
   const gate = canPublishLandingPage({
     projectStatus: project.status,
@@ -1294,6 +1369,14 @@ export async function publishPage(formData: FormData): Promise<void> {
     throw new Error(`Publish blocked: ${gate.reasons.join(" ")}`);
   }
 
+  const effectiveProductionUrl =
+    productionUrl ??
+    buildLandingPageProductionUrl({
+      appUrl: serverEnv.APP_URL,
+      projectId,
+      slug: submittedVersion.slug,
+    });
+
   if (project.published_version_id && project.published_version_id !== project.submitted_version_id) {
     await supabase
       .from("landing_page_versions")
@@ -1305,7 +1388,7 @@ export async function publishPage(formData: FormData): Promise<void> {
     .from("landing_page_projects")
     .update({
       status: "published",
-      production_url: productionUrl,
+      production_url: effectiveProductionUrl,
       published_version_id: project.submitted_version_id,
     } as never)
     .eq("id", projectId);
@@ -1324,7 +1407,7 @@ export async function publishPage(formData: FormData): Promise<void> {
     landing_page_version_id: project.submitted_version_id,
     environment: "production",
     provider,
-    url: productionUrl,
+    url: effectiveProductionUrl,
     status: "succeeded",
     deployment_kind: "publish",
     triggered_by: session.userId,
@@ -1337,7 +1420,7 @@ export async function publishPage(formData: FormData): Promise<void> {
     resource: "landing_page_projects",
     resourceId: projectId,
     clientId: project.client_id,
-    metadata: { published: true, productionUrl, provider },
+    metadata: { published: true, productionUrl: effectiveProductionUrl, provider },
   });
 
   // Automation: deployment succeeded → notify the project owner.
@@ -1345,7 +1428,7 @@ export async function publishPage(formData: FormData): Promise<void> {
     if (await recordRun(supabase, session.organisationId, "page_published_notify", projectId, `Publish notification for ${project.name}`)) {
       await notifyUsers(supabase, session.organisationId, [project.created_by], {
         title: `Published: ${project.name}`,
-        body: `Live at ${productionUrl}`,
+        body: `Live at ${effectiveProductionUrl}`,
         href: "/landing-page-factory",
         clientId: project.client_id,
       });

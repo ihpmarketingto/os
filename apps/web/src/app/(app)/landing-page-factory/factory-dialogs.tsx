@@ -29,6 +29,7 @@ import {
   setReusableComponentApprovalStatus,
   setBuildProjectReuse,
 } from "./actions";
+import { LANDING_PAGE_TEMPLATE_PRESETS } from "./template-presets";
 
 export interface Option {
   id: string;
@@ -46,6 +47,8 @@ const DEPLOYMENT_PROVIDER_OPTIONS = [
   { value: "cloudflare_pages", label: "Cloudflare Pages" },
   { value: "replit", label: "Replit" },
 ] as const;
+
+const PRESET_OPTIONS = LANDING_PAGE_TEMPLATE_PRESETS;
 
 type DeploymentProviderValue = (typeof DEPLOYMENT_PROVIDER_OPTIONS)[number]["value"];
 
@@ -372,14 +375,31 @@ export function NewPageProjectDialog({
           <div className="space-y-1.5">
             <Label htmlFor="page-template">Reusable template</Label>
             <select id="page-template" name="templateId" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
-              <option value="">Use the built-in Lip Blush conversion preset</option>
+              <option value="">No reusable template selected</option>
               {templates.map((template) => (
                 <option key={template.id} value={template.id}>
                   {template.name}
                 </option>
               ))}
             </select>
-            <input type="hidden" name="templatePresetKey" value="lip_blush_conversion" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="page-preset">Starter preset</Label>
+            <select
+              id="page-preset"
+              name="templatePresetKey"
+              defaultValue="lip_blush_conversion"
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            >
+              {PRESET_OPTIONS.map((preset) => (
+                <option key={preset.key} value={preset.key}>
+                  {preset.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Used when no reusable template is selected. Pick the closest starting point, then adapt it in the editor.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="page-reference">Reference project (approved for reuse only)</Label>
@@ -452,7 +472,7 @@ export function PageStatusActions({ projectId, status }: { projectId: string; st
               <DialogHeader>
                 <DialogTitle>{action.label}</DialogTitle>
                 <DialogDescription>
-                  Record the preview deployment explicitly so the next approval step stays tied to a real URL.
+                  Leave the URL blank to use the native IHP OS preview, or record an explicit external preview deployment here.
                 </DialogDescription>
               </DialogHeader>
               <form
@@ -465,7 +485,7 @@ export function PageStatusActions({ projectId, status }: { projectId: string; st
               >
                 <div className="space-y-1.5">
                   <Label htmlFor={`preview-url-${projectId}`}>Preview URL</Label>
-                  <Input id={`preview-url-${projectId}`} name="previewUrl" type="url" required placeholder="https://..." />
+                  <Input id={`preview-url-${projectId}`} name="previewUrl" type="url" placeholder="https://..." />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`preview-provider-${projectId}`}>Provider</Label>
@@ -567,10 +587,24 @@ export function CreateTemplateDialog() {
           }}
           className="space-y-3"
         >
-          <input type="hidden" name="presetKey" value="lip_blush_conversion" />
           <div className="space-y-1.5">
             <Label htmlFor="template-name">Template name</Label>
             <Input id="template-name" name="name" required placeholder="Lip Blush conversion template" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="template-preset">Starter preset</Label>
+            <select
+              id="template-preset"
+              name="presetKey"
+              defaultValue="lip_blush_conversion"
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            >
+              {PRESET_OPTIONS.map((preset) => (
+                <option key={preset.key} value={preset.key}>
+                  {preset.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="template-description">Description</Label>
@@ -739,8 +773,8 @@ export function PublishDialog({
         <DialogHeader>
           <DialogTitle>Publish {projectName}</DialogTitle>
           <DialogDescription>
-            QA passed and the client has approved. This records the production deployment and is logged as an
-            external action.
+            QA passed and the client has approved. Leave the URL blank to publish on the native IHP OS route, or
+            record an explicit external production URL here.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -753,7 +787,7 @@ export function PublishDialog({
           <input type="hidden" name="projectId" value={projectId} />
           <div className="space-y-1.5">
             <Label htmlFor="publish-url">Production URL</Label>
-            <Input id="publish-url" name="productionUrl" type="url" required placeholder="https://..." />
+            <Input id="publish-url" name="productionUrl" type="url" placeholder="https://..." />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="publish-provider">Provider</Label>

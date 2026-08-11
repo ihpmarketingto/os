@@ -1315,6 +1315,7 @@ export interface Database {
           draft_version_id: string | null;
           submitted_version_id: string | null;
           published_version_id: string | null;
+          preview_share_token: string;
           repository_url: string | null;
           branch: string | null;
           preview_url: string | null;
