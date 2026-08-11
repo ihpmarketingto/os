@@ -74,12 +74,36 @@ function resolveSectionHref(
   return section ? `#${section.id}` : null;
 }
 
+function resolveEnabledSection(
+  draft: LandingPageDraft,
+  kind: LandingPageSection["kind"],
+): LandingPageSection | null {
+  return draft.sections.find((candidate) => candidate.enabled && candidate.kind === kind) ?? null;
+}
+
+function resolveOfferContext(draft: LandingPageDraft) {
+  const offerSection = resolveEnabledSection(draft, "offer");
+  return {
+    headline: offerSection?.headline ?? null,
+    investmentLabel: offerSection?.subheadline ?? null,
+    urgencyLabel: offerSection?.badge ?? draft.theme.urgencyLabel ?? null,
+  };
+}
+
+function isScaffoldingCopy(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const normalised = value.trim().toLowerCase();
+  return /^(use|add|connect|clarify|spell out|show|make|attach|answer|point visitors to|list )/.test(normalised);
+}
+
 function PreviewPill({ children, subtle = false }: { children: string; subtle?: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em]",
-        subtle ? "border-black/10 bg-black/4 text-black/55" : "border-white/20 bg-white/80 text-black/70",
+        "inline-flex items-center rounded-full border px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] shadow-[0_10px_28px_-24px_rgba(32,18,24,0.5)]",
+        subtle
+          ? "border-[#e2d5cc] bg-[#faf3ee] text-black/48"
+          : "border-white/55 bg-white/90 text-black/58 backdrop-blur",
       )}
     >
       {children}
@@ -104,10 +128,10 @@ function PreviewButton({
       }
       variant={variant}
       className={cn(
-        "h-11 rounded-full px-5 text-sm shadow-sm",
-        variant === "default" && "bg-[color:var(--lpf-primary)] text-white hover:bg-[color:var(--lpf-primary)]/90",
-        variant === "outline" && "border-black/10 bg-white/90 hover:bg-white",
-        variant === "secondary" && "bg-white text-[color:var(--lpf-primary)] hover:bg-white/90",
+        "h-12 rounded-full px-6 text-[13px] font-medium shadow-[0_18px_40px_-30px_rgba(32,18,24,0.55)] transition-colors",
+        variant === "default" && "bg-[color:var(--lpf-primary)] text-white hover:bg-[color:var(--lpf-primary)]/92",
+        variant === "outline" && "border-[#dfd1c7] bg-white/92 text-black/72 hover:bg-white",
+        variant === "secondary" && "bg-white text-[color:var(--lpf-primary)] hover:bg-white/92",
       )}
     >
       {label}
@@ -122,14 +146,23 @@ function SectionIntro({
   section: LandingPageSection;
   align?: "left" | "center";
 }) {
+  const bodyIsScaffolding = isScaffoldingCopy(section.body);
   return (
     <div className={cn("space-y-3", align === "center" && "mx-auto max-w-3xl text-center")}>
       {section.eyebrow ? (
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-black/45">{section.eyebrow}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-black/38">{section.eyebrow}</p>
       ) : null}
-      {section.headline ? <h2 className="font-heading text-3xl leading-[1.05] md:text-4xl">{section.headline}</h2> : null}
-      {section.subheadline ? <p className="text-base leading-7 text-black/72">{section.subheadline}</p> : null}
-      {section.body ? <p className="max-w-3xl text-sm leading-7 text-black/62">{section.body}</p> : null}
+      {section.headline ? <h2 className="font-heading text-[2.25rem] leading-[0.95] tracking-[-0.02em] md:text-[3.4rem]">{section.headline}</h2> : null}
+      {section.subheadline ? (
+        <p className={cn("max-w-2xl text-[1.02rem] leading-8", isScaffoldingCopy(section.subheadline) ? "text-black/52 italic" : "text-black/72")}>
+          {section.subheadline}
+        </p>
+      ) : null}
+      {section.body ? (
+        <p className={cn("max-w-3xl text-[15px] leading-7", bodyIsScaffolding ? "text-black/48 italic" : "text-black/60")}>
+          {section.body}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -151,36 +184,41 @@ function AssetPlaceholder({
   aspectClass: string;
   dark?: boolean;
 }) {
+  const labelIsScaffolding = isScaffoldingCopy(label);
+  const emptyLabelTone = dark ? "text-white/84" : labelIsScaffolding ? "text-black/52 italic" : "text-black/68";
+  const emptyHelperTone = dark ? "text-white/65" : "text-black/46";
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-[1.6rem] border p-4 shadow-[0_18px_50px_-35px_rgba(20,12,18,0.45)]",
+        "overflow-hidden rounded-[1.8rem] border p-4 shadow-[0_26px_60px_-42px_rgba(20,12,18,0.48)]",
         dark
           ? "border-white/14 bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.08))] text-white"
-          : "border-black/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(255,255,255,0.78))] text-black",
+          : "border-[#e4d8cf] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,240,235,0.92))] text-black",
       )}
     >
       <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <p className={cn("text-[11px] font-semibold uppercase tracking-[0.24em]", dark ? "text-white/65" : "text-black/45")}>
+        <div className="space-y-1">
+          <p className={cn("text-[10px] font-semibold uppercase tracking-[0.22em]", dark ? "text-white/62" : "text-black/38")}>
             {title}
           </p>
-          <p className={cn("text-sm", dark ? "text-white/85" : "text-black/70")}>{label}</p>
+          {note ? <p className={cn("text-xs", dark ? "text-white/72" : "text-black/48")}>{note}</p> : null}
         </div>
         <span
           className={cn(
-            "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em]",
-            dark ? "bg-white/12 text-white/72" : "bg-black/4 text-black/48",
+            "rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.16em]",
+            dark ? "bg-white/12 text-white/72" : "bg-white text-black/46 shadow-[0_10px_24px_-18px_rgba(20,12,18,0.45)]",
           )}
         >
-          Image slot
+          {imageUrl ? "Approved image" : "Needs image"}
         </span>
       </div>
       <div
         className={cn(
-          "relative overflow-hidden rounded-[1.25rem] border border-dashed p-4",
+          "relative overflow-hidden rounded-[1.45rem] border p-4",
           aspectClass,
-          dark ? "border-white/18 bg-black/12" : "border-black/10 bg-[linear-gradient(135deg,rgba(125,58,70,0.08),rgba(217,166,139,0.22))]",
+          dark
+            ? "border-white/18 bg-black/12"
+            : "border-[#eadcd2] bg-[linear-gradient(135deg,rgba(125,58,70,0.08),rgba(217,166,139,0.24))]",
         )}
       >
         {imageUrl ? (
@@ -190,15 +228,25 @@ function AssetPlaceholder({
             <div className={cn("absolute inset-0", dark ? "bg-black/28" : "bg-white/10")} />
           </>
         ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),transparent_58%)] opacity-80" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.82),transparent_58%)] opacity-90" />
         )}
         <div className="relative flex h-full flex-col justify-between">
-          <div className={cn("max-w-[15rem] text-sm leading-6", dark ? "text-white/82" : "text-black/68")}>{label}</div>
-          {note ? (
-            <div className={cn("self-start rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.22em]", dark ? "bg-white/10 text-white/70" : "bg-white/70 text-black/48")}>
-              {note}
+          {imageUrl ? (
+            <div className={cn("mt-auto self-start rounded-full px-3 py-1.5 text-[11px]", dark ? "bg-black/32 text-white/84" : "bg-white/86 text-black/58")}>
+              {label}
             </div>
-          ) : null}
+          ) : (
+            <div className="flex h-full items-end">
+              <div>
+                <p className={cn("max-w-[16rem] text-base leading-6", emptyLabelTone)}>
+                  {label}
+                </p>
+                <p className={cn("mt-2 text-xs leading-6", emptyHelperTone)}>
+                  Add an approved asset here to give this section real proof and texture.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -213,6 +261,7 @@ function BookingCard({ draft, section }: { draft: LandingPageDraft; section: Lan
   ]).slice(0, 3);
   const primaryHref = resolvePrimaryCtaHref(draft);
   const secondaryHref = resolveSectionHref(draft, "faq") ?? resolveSectionHref(draft, "results") ?? primaryHref;
+  const offerContext = resolveOfferContext(draft);
   const destinationLabel =
     draft.form.bookingUrl ??
     draft.form.externalCheckoutUrl ??
@@ -223,29 +272,44 @@ function BookingCard({ draft, section }: { draft: LandingPageDraft; section: Lan
   return (
     <div
       id={draft.form.ctaType === "lead_form" ? "lead-form" : undefined}
-      className="rounded-[1.6rem] border border-black/8 bg-white p-5 shadow-[0_24px_60px_-40px_rgba(20,12,18,0.5)]"
+      className="rounded-[2rem] border border-[#e4d7cd] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,241,236,0.96))] p-6 shadow-[0_30px_78px_-46px_rgba(20,12,18,0.52)]"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/45">Primary conversion path</p>
-          <h3 className="mt-2 font-heading text-2xl leading-tight">{draft.form.submitLabel}</h3>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/38">Reserve</p>
+          <h3 className="mt-2 font-heading text-[2rem] leading-tight">{draft.form.submitLabel}</h3>
+          {offerContext.investmentLabel ? <p className="mt-2 text-sm text-black/62">{offerContext.investmentLabel}</p> : null}
         </div>
-        <Badge variant="outline" className="border-black/10 bg-black/4 text-black/60">
-          {draft.form.ctaType === "booking_link" ? "Booking" : draft.form.ctaType === "lead_form" ? "Lead form" : "Checkout"}
-        </Badge>
+        {offerContext.urgencyLabel ? (
+          <Badge variant="outline" className="border-[#ddd1c7] bg-white/84 text-black/54">
+            {offerContext.urgencyLabel}
+          </Badge>
+        ) : null}
       </div>
 
-      <div className="mt-4 space-y-2">
+      {offerContext.headline ? (
+        <div className="mt-5 rounded-[1.45rem] border border-[#e5d8ce] bg-white/84 p-4">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-black/36">Offer summary</p>
+          <p className="mt-2 text-sm leading-7 text-black/68">{offerContext.headline}</p>
+        </div>
+      ) : null}
+
+      <div className="mt-5 space-y-2.5">
         {bullets.map((bullet) => (
-          <div key={bullet} className="flex items-start gap-2 rounded-2xl bg-[color:var(--lpf-surface)] px-3 py-3 text-sm text-black/68">
-            <span className="mt-1 size-2 rounded-full bg-[color:var(--lpf-accent)]" />
+          <div
+            key={bullet}
+            className="flex items-start gap-3 rounded-[1.2rem] border border-[#eaded5] bg-white/92 px-4 py-3 text-sm leading-7 text-black/66"
+          >
+            <span className="mt-1.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[color:var(--lpf-primary)]/12 text-[10px] font-semibold text-[color:var(--lpf-primary)]">
+              +
+            </span>
             <span>{bullet}</span>
           </div>
         ))}
       </div>
 
-      <div className="mt-5 space-y-3 rounded-[1.35rem] border border-black/8 bg-[linear-gradient(180deg,rgba(125,58,70,0.08),rgba(255,255,255,0.96))] p-4">
-        <p className="text-[11px] uppercase tracking-[0.22em] text-black/45">Destination</p>
+      <div className="mt-5 space-y-3 rounded-[1.45rem] border border-[#e6d9d0] bg-[linear-gradient(180deg,rgba(125,58,70,0.05),rgba(255,255,255,0.96))] p-4">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-black/38">Destination</p>
         <p className="text-sm leading-6 text-black/70">{destinationLabel}</p>
       </div>
 
@@ -267,43 +331,43 @@ function QuoteCard({
   meta?: string | null;
 }) {
   return (
-    <div className="rounded-[1.45rem] border border-black/8 bg-white p-5 shadow-[0_20px_50px_-38px_rgba(20,12,18,0.45)]">
-      <p className="text-xs tracking-[0.24em] text-[color:var(--lpf-primary)]">★★★★★</p>
-      <p className="mt-3 font-heading text-xl leading-8">
+    <div className="rounded-[1.6rem] border border-[#e5d8ce] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,240,235,0.9))] p-6 shadow-[0_24px_55px_-40px_rgba(20,12,18,0.45)]">
+      <p className="text-[11px] tracking-[0.24em] text-[color:var(--lpf-primary)]">★★★★★</p>
+      <p className="mt-4 font-heading text-[1.7rem] leading-8 tracking-[-0.015em]">
         &ldquo;{title}&rdquo;
       </p>
-      {body ? <p className="mt-3 text-sm leading-7 text-black/64">{body}</p> : null}
-      {meta ? <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-black/42">{meta}</p> : null}
+      {body ? <p className={cn("mt-3 text-sm leading-7", isScaffoldingCopy(body) ? "text-black/48 italic" : "text-black/62")}>{body}</p> : null}
+      {meta ? <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.24em] text-black/38">{meta}</p> : null}
     </div>
   );
 }
 
 function ProcessCard({ item, index }: { item: LandingPageSection["items"][number]; index: number }) {
   return (
-    <div className="relative rounded-[1.5rem] border border-black/8 bg-white p-5 shadow-[0_18px_50px_-38px_rgba(20,12,18,0.45)]">
+    <div className="relative rounded-[1.7rem] border border-[#e4d7cd] bg-white/96 p-6 shadow-[0_22px_55px_-42px_rgba(20,12,18,0.42)]">
       <div className="mb-4 flex items-center gap-3">
-        <div className="flex size-10 items-center justify-center rounded-full bg-[color:var(--lpf-primary)] text-sm font-semibold text-white">
+        <div className="flex size-11 items-center justify-center rounded-full bg-[color:var(--lpf-primary)] text-sm font-semibold text-white shadow-[0_12px_28px_-18px_rgba(20,12,18,0.48)]">
           {index + 1}
         </div>
         <div>
-          {item.meta ? <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/40">{item.meta}</p> : null}
-          <p className="font-heading text-2xl leading-tight">{item.title}</p>
+          {item.meta ? <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/36">{item.meta}</p> : null}
+          <p className="font-heading text-[1.85rem] leading-tight tracking-[-0.02em]">{item.title}</p>
         </div>
       </div>
-      {item.body ? <p className="text-sm leading-7 text-black/64">{item.body}</p> : null}
+      {item.body ? <p className={cn("text-sm leading-7", isScaffoldingCopy(item.body) ? "text-black/48 italic" : "text-black/62")}>{item.body}</p> : null}
     </div>
   );
 }
 
 function FaqCard({ item }: { item: LandingPageSection["items"][number] }) {
   return (
-    <div className="rounded-[1.35rem] border border-black/8 bg-white px-5 py-4 shadow-[0_18px_40px_-36px_rgba(20,12,18,0.4)]">
+    <div className="rounded-[1.55rem] border border-[#e5d8ce] bg-white/96 px-5 py-5 shadow-[0_20px_45px_-38px_rgba(20,12,18,0.38)]">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="font-medium text-black/88">{item.title}</p>
-          {item.body ? <p className="mt-2 text-sm leading-7 text-black/62">{item.body}</p> : null}
+          {item.body ? <p className={cn("mt-2 text-sm leading-7", isScaffoldingCopy(item.body) ? "text-black/48 italic" : "text-black/62")}>{item.body}</p> : null}
         </div>
-        <div className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-black/4 text-lg text-black/45">
+        <div className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-full border border-[#e1d3ca] bg-[#fbf4ef] text-lg text-black/42">
           +
         </div>
       </div>
@@ -334,85 +398,135 @@ function PreviewSection({
       const heroItems = section.items.slice(0, 3);
       const heroPrimaryHref = section.ctaHref ?? primaryHref;
       const resultsHref = resolveSectionHref(draft, "results") ?? heroPrimaryHref;
+      const offerContext = resolveOfferContext(draft);
       return (
         <section
-          className="relative overflow-hidden rounded-[2.3rem] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(255,247,243,0.98))] px-6 py-6 shadow-[0_30px_90px_-50px_rgba(20,12,18,0.55)] md:px-8 md:py-8"
+          className="relative overflow-hidden rounded-[2.8rem] border border-[#e6d8cf] bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(250,243,237,0.98))] px-6 py-7 shadow-[0_34px_95px_-56px_rgba(20,12,18,0.58)] md:px-9 md:py-9"
           id={section.id}
         >
-          <div className="absolute inset-y-0 right-0 w-[42%] bg-[radial-gradient(circle_at_top_right,rgba(125,58,70,0.16),transparent_60%)]" />
-          <div className="absolute -left-10 top-10 size-40 rounded-full bg-[color:var(--lpf-accent)]/22 blur-3xl" />
-          <div className="relative grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-            <div className="space-y-5">
+          <div className="absolute -left-16 top-0 size-52 rounded-full bg-[color:var(--lpf-accent)]/22 blur-3xl" />
+          <div className="absolute right-0 top-0 h-72 w-[38%] bg-[radial-gradient(circle_at_top_right,rgba(125,58,70,0.14),transparent_68%)]" />
+          <div className="absolute bottom-0 left-[24%] h-48 w-48 rounded-full bg-white/55 blur-3xl" />
+          <div className="relative grid gap-10 xl:grid-cols-[minmax(0,0.97fr)_450px] xl:items-center">
+            <div className="space-y-8">
               <div className="flex flex-wrap items-center gap-3">
-                {section.badge ? <Badge className="border-0 bg-[color:var(--lpf-primary)]/10 text-[color:var(--lpf-primary)]">{section.badge}</Badge> : null}
+                {section.badge ? <Badge className="border-0 bg-[color:var(--lpf-primary)]/10 px-3 py-1 text-[color:var(--lpf-primary)]">{section.badge}</Badge> : null}
                 {section.eyebrow ? <PreviewPill subtle>{section.eyebrow}</PreviewPill> : null}
               </div>
 
-              {section.headline ? <h1 className="max-w-3xl font-heading text-4xl leading-[0.98] md:text-6xl">{section.headline}</h1> : null}
-              {section.subheadline ? <p className="max-w-2xl text-lg leading-8 text-black/74">{section.subheadline}</p> : null}
-              {section.body ? <p className="max-w-2xl text-sm leading-8 text-black/62">{section.body}</p> : null}
-
-              <div className="flex flex-wrap gap-2 pt-1">
-                {sectionHighlights(section, ["Custom-mapped service", "Natural healed result", "Simple booking path"]).map((bullet) => (
-                  <PreviewPill key={bullet}>{bullet}</PreviewPill>
-                ))}
+              <div className="space-y-5">
+                {section.headline ? (
+                  <h1 className="max-w-[11ch] font-heading text-[3.3rem] leading-[0.9] tracking-[-0.03em] md:text-[5.4rem]">
+                    {section.headline}
+                  </h1>
+                ) : null}
+                {section.subheadline ? (
+                  <p className={cn("max-w-2xl text-[1.08rem] leading-8", isScaffoldingCopy(section.subheadline) ? "text-black/52 italic" : "text-black/72")}>
+                    {section.subheadline}
+                  </p>
+                ) : null}
+                {section.body ? (
+                  <p className={cn("max-w-2xl text-[15px] leading-8", isScaffoldingCopy(section.body) ? "text-black/48 italic" : "text-black/60")}>
+                    {section.body}
+                  </p>
+                ) : null}
               </div>
 
-              <div className="flex flex-wrap gap-3 pt-2">
-                {section.ctaLabel ? <PreviewButton label={section.ctaLabel} href={heroPrimaryHref} /> : null}
-                <PreviewButton label="See healed results" href={resultsHref} variant="outline" />
+              <div className="flex flex-wrap gap-3">
+                {offerContext.investmentLabel ? (
+                  <div className="rounded-[1.55rem] border border-[#e4d6cd] bg-white/86 px-4 py-3 shadow-[0_18px_40px_-34px_rgba(20,12,18,0.36)]">
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-black/34">Investment</p>
+                    <p className="mt-1 font-heading text-[1.85rem] leading-tight">{offerContext.investmentLabel}</p>
+                  </div>
+                ) : null}
+                {offerContext.urgencyLabel ? (
+                  <div className="flex items-center rounded-[1.55rem] border border-[#e7dad1] bg-[color:var(--lpf-surface)] px-4 py-3 text-sm text-black/62 shadow-[0_18px_40px_-34px_rgba(20,12,18,0.28)]">
+                    {offerContext.urgencyLabel}
+                  </div>
+                ) : null}
               </div>
 
               {heroItems.length > 0 ? (
-                <div className="grid gap-3 pt-3 md:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-2 xl:max-w-[44rem]">
                   {heroItems.map((item) => (
-                    <div key={item.id} className="rounded-[1.3rem] border border-black/8 bg-white/88 px-4 py-4 shadow-[0_18px_40px_-38px_rgba(20,12,18,0.45)]">
-                      {item.meta ? <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/42">{item.meta}</p> : null}
-                      <p className="mt-2 font-medium text-black/86">{item.title}</p>
-                      {item.body ? <p className="mt-2 text-sm leading-6 text-black/60">{item.body}</p> : null}
+                    <div
+                      key={item.id}
+                      className="flex gap-4 rounded-[1.55rem] border border-[#e6d9d0] bg-white/90 px-4 py-4 shadow-[0_20px_45px_-38px_rgba(20,12,18,0.42)]"
+                    >
+                      <div className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--lpf-primary)] text-sm font-semibold text-white shadow-[0_12px_28px_-20px_rgba(20,12,18,0.44)]">
+                        ✓
+                      </div>
+                      <div>
+                        {item.meta ? <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/36">{item.meta}</p> : null}
+                        <p className="mt-1 font-medium text-black/86">{item.title}</p>
+                        {item.body ? (
+                          <p className={cn("mt-2 text-sm leading-7", isScaffoldingCopy(item.body) ? "text-black/48 italic" : "text-black/58")}>
+                            {item.body}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : null}
+
+              <div className="flex flex-wrap gap-3">
+                {section.ctaLabel ? <PreviewButton label={section.ctaLabel} href={heroPrimaryHref} /> : null}
+                <PreviewButton label="See healed results" href={resultsHref} variant="outline" />
+              </div>
             </div>
 
-            <div className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
+            <div className="space-y-6 xl:pl-3">
+              <div className="relative rounded-[2.25rem] border border-[#e8d9d0] bg-[linear-gradient(180deg,rgba(249,241,236,0.96),rgba(255,255,255,0.94))] p-4 pb-24 shadow-[0_28px_70px_-44px_rgba(20,12,18,0.54)]">
                 <AssetPlaceholder
-                  title="Hero visual"
+                  title="Primary visual"
                   label={heroVisual.label}
                   imageUrl={heroVisual.previewUrl}
                   imageAlt={heroVisual.alt}
-                  note="Primary visual"
+                  note="Lead with the finished result or strongest close-up"
                   aspectClass="aspect-[4/5]"
                 />
-                <div className="space-y-4">
-                  <div className="rounded-[1.5rem] border border-black/8 bg-[color:var(--lpf-primary)] px-5 py-5 text-white shadow-[0_22px_60px_-42px_rgba(20,12,18,0.55)]">
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-white/65">Why this converts</p>
-                    <p className="mt-3 font-heading text-2xl leading-tight">
-                      {draft.social.socialProofLabel ?? "Real proof, clear offer, repeated CTA"}
-                    </p>
-                    <p className="mt-3 text-sm leading-7 text-white/78">
-                      A strong landing page makes the outcome obvious, lowers fear, and gives the visitor a clean next step.
-                    </p>
-                  </div>
-                  <AssetPlaceholder
-                    title="Supporting visual"
-                    label={heroDetailVisual.label}
-                    imageUrl={heroDetailVisual.previewUrl}
-                    imageAlt={heroDetailVisual.alt}
-                    note="Detail visual"
-                    aspectClass="aspect-[4/3]"
-                  />
-                  <div className="rounded-[1.5rem] border border-black/8 bg-white/92 px-4 py-4 shadow-[0_18px_45px_-38px_rgba(20,12,18,0.42)]">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/42">Visitor takeaway</p>
-                    <p className="mt-2 text-sm leading-7 text-black/64">
-                      {section.subheadline ?? "Make the promise feel polished, intentional, and easy to trust."}
-                    </p>
+
+                <div className="absolute left-4 top-4 max-w-[220px] rounded-[1.6rem] bg-[color:var(--lpf-primary)] px-5 py-5 text-white shadow-[0_22px_55px_-34px_rgba(20,12,18,0.58)]">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-white/62">Why this converts</p>
+                  <p className="mt-3 font-heading text-[1.85rem] leading-tight">
+                    {draft.social.socialProofLabel ?? "Real proof. Clear promise. Repeated CTA."}
+                  </p>
+                  <p className="mt-3 text-sm leading-7 text-white/78">
+                    The first fold should make the outcome feel obvious before the visitor has to think too hard.
+                  </p>
+                </div>
+
+                <div className="absolute -bottom-8 left-10 right-10 rounded-[1.45rem] border border-[#e6d9d0] bg-white/96 p-3 shadow-[0_22px_52px_-38px_rgba(20,12,18,0.48)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/38">Supporting visual</p>
+                  <div className="mt-3 overflow-hidden rounded-[1.15rem] border border-[#eaddd4] bg-[linear-gradient(135deg,rgba(125,58,70,0.06),rgba(217,166,139,0.22))]">
+                    <div className="relative aspect-[4/3] overflow-hidden">
+                      {heroDetailVisual.previewUrl ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={heroDetailVisual.previewUrl} alt={heroDetailVisual.alt} className="absolute inset-0 size-full object-cover" />
+                          <div className="absolute inset-0 bg-white/10" />
+                        </>
+                      ) : (
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.84),transparent_58%)]" />
+                      )}
+                      <div className="relative flex h-full items-end p-4">
+                        <div>
+                          <p className={cn("max-w-[15rem] text-sm leading-6", isScaffoldingCopy(heroDetailVisual.label) ? "text-black/50 italic" : "text-black/62")}>
+                            {heroDetailVisual.label}
+                          </p>
+                          {!heroDetailVisual.previewUrl ? (
+                            <p className="mt-1 text-xs text-black/42">Use a detail crop, brand moment, or close-up proof image.</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-              <BookingCard draft={draft} section={section} />
+              <div className="xl:pl-7">
+                <BookingCard draft={draft} section={section} />
+              </div>
             </div>
           </div>
         </section>
@@ -432,44 +546,23 @@ function PreviewSection({
         "Healed result, detail shot, or supporting proof image",
       );
       return (
-        <section className="rounded-[2.1rem] border border-black/8 bg-[rgba(255,250,246,0.92)] px-6 py-6 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.45)] md:px-8 md:py-8" id={section.id}>
-          <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
-            <div className="space-y-5">
+        <section className="rounded-[2.35rem] border border-[#e7dbd1] bg-[linear-gradient(180deg,rgba(255,250,246,0.94),rgba(255,255,255,0.96))] px-6 py-7 shadow-[0_28px_75px_-50px_rgba(20,12,18,0.46)] md:px-8 md:py-8" id={section.id}>
+          <div className="grid gap-8 xl:grid-cols-[0.92fr_1.08fr] xl:items-start">
+            <div className="space-y-6">
               <SectionIntro section={section} />
-              <div className="grid gap-4 md:grid-cols-2">
-                <AssetPlaceholder
-                  title="Results gallery"
-                  label={resultsPrimary.label}
-                  imageUrl={resultsPrimary.previewUrl}
-                  imageAlt={resultsPrimary.alt}
-                  note="Before + after"
-                  aspectClass="aspect-[4/3]"
-                />
-                <AssetPlaceholder
-                  title="Healed outcome"
-                  label={resultsSecondary.label}
-                  imageUrl={resultsSecondary.previewUrl}
-                  imageAlt={resultsSecondary.alt}
-                  note="Healed result"
-                  aspectClass="aspect-[4/3]"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3">
                 {section.items.map((item) => (
-                  <div key={item.id} className="rounded-[1.35rem] border border-black/8 bg-white px-4 py-4 shadow-[0_18px_45px_-38px_rgba(20,12,18,0.4)]">
-                    {item.meta ? <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--lpf-primary)]">{item.meta}</p> : null}
+                  <div key={item.id} className="rounded-[1.45rem] border border-[#e5d8ce] bg-white/94 px-4 py-4 shadow-[0_20px_44px_-38px_rgba(20,12,18,0.38)]">
+                    {item.meta ? <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[color:var(--lpf-primary)]">{item.meta}</p> : null}
                     <p className="mt-2 font-medium text-black/86">{item.title}</p>
-                    {item.body ? <p className="mt-2 text-sm leading-7 text-black/62">{item.body}</p> : null}
+                    {item.body ? <p className={cn("mt-2 text-sm leading-7", isScaffoldingCopy(item.body) ? "text-black/48 italic" : "text-black/60")}>{item.body}</p> : null}
                   </div>
                 ))}
               </div>
 
               {section.bullets.length > 0 ? (
-                <div className="rounded-[1.6rem] border border-black/8 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(20,12,18,0.4)]">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-black/42">Claims and highlights</p>
+                <div className="rounded-[1.65rem] border border-[#e4d7ce] bg-white/94 p-5 shadow-[0_20px_45px_-38px_rgba(20,12,18,0.38)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-black/38">Claims and highlights</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {section.bullets.map((bullet) => (
                       <PreviewPill key={bullet} subtle>
@@ -480,6 +573,36 @@ function PreviewSection({
                 </div>
               ) : null}
             </div>
+
+            <div className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
+              <AssetPlaceholder
+                title="Results gallery"
+                label={resultsPrimary.label}
+                imageUrl={resultsPrimary.previewUrl}
+                imageAlt={resultsPrimary.alt}
+                note="Primary proof image"
+                aspectClass="aspect-[4/5]"
+              />
+              <div className="space-y-4">
+                <AssetPlaceholder
+                  title="Supporting proof"
+                  label={resultsSecondary.label}
+                  imageUrl={resultsSecondary.previewUrl}
+                  imageAlt={resultsSecondary.alt}
+                  note="Healed or detail image"
+                  aspectClass="aspect-[4/4]"
+                />
+                <div className="rounded-[1.7rem] border border-[#e4d7ce] bg-[color:var(--lpf-primary)] px-5 py-5 text-white shadow-[0_22px_55px_-40px_rgba(20,12,18,0.52)]">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-white/62">Proof standard</p>
+                  <p className="mt-3 font-heading text-[2rem] leading-tight">
+                    Show outcome first, then explain why it is believable.
+                  </p>
+                  <p className="mt-3 text-sm leading-7 text-white/78">
+                    When the visuals do their job, the rest of the section only has to clarify and reassure.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       );
@@ -488,39 +611,44 @@ function PreviewSection({
       const offerPrimaryHref = section.ctaHref ?? primaryHref;
       const compareHref = resolveSectionHref(draft, "faq") ?? resolveSectionHref(draft, "testimonials") ?? offerPrimaryHref;
       return (
-        <section className="rounded-[2.05rem] border border-black/8 bg-white px-6 py-6 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.45)] md:px-8 md:py-8" id={section.id}>
-          <div className="grid gap-6 xl:grid-cols-[1fr_0.96fr]">
-            <div className="space-y-5">
+        <section className="rounded-[2.35rem] border border-[#e6dad0] bg-white px-6 py-7 shadow-[0_28px_75px_-50px_rgba(20,12,18,0.46)] md:px-8 md:py-8" id={section.id}>
+          <div className="grid gap-8 xl:grid-cols-[0.94fr_1.06fr] xl:items-start">
+            <div className="space-y-6">
               <SectionIntro section={section} />
               {section.bullets.length > 0 ? (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {section.bullets.map((bullet) => (
-                    <div key={bullet} className="rounded-[1.2rem] border border-black/8 bg-[color:var(--lpf-surface)] px-4 py-4 text-sm leading-7 text-black/66">
-                      {bullet}
+                <div className="grid gap-3">
+                  {section.bullets.map((bullet, index) => (
+                    <div key={bullet} className="flex items-start gap-4 rounded-[1.35rem] border border-[#e5d8ce] bg-[color:var(--lpf-surface)] px-4 py-4 text-sm leading-7 text-black/66">
+                      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-semibold text-[color:var(--lpf-primary)] shadow-[0_10px_24px_-18px_rgba(20,12,18,0.38)]">
+                        {index + 1}
+                      </span>
+                      <span>{bullet}</span>
                     </div>
                   ))}
                 </div>
               ) : null}
             </div>
 
-            <div className="grid gap-4">
-              <div className="rounded-[1.7rem] border border-black/8 bg-[linear-gradient(180deg,rgba(125,58,70,0.08),rgba(255,255,255,0.98))] p-5 shadow-[0_22px_60px_-42px_rgba(20,12,18,0.45)]">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/42">What is included</p>
+            <div className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
+              <div className="rounded-[1.85rem] border border-[#e4d7ce] bg-[linear-gradient(180deg,rgba(125,58,70,0.06),rgba(255,255,255,0.98))] p-5 shadow-[0_22px_60px_-42px_rgba(20,12,18,0.42)]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/38">What is included</p>
                 <div className="mt-4 grid gap-3">
                   {section.items.map((item) => (
-                    <div key={item.id} className="rounded-[1.2rem] border border-black/8 bg-white/90 px-4 py-4">
-                      {item.meta ? <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--lpf-primary)]">{item.meta}</p> : null}
+                    <div key={item.id} className="rounded-[1.3rem] border border-[#e5d8ce] bg-white/92 px-4 py-4">
+                      {item.meta ? <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--lpf-primary)]">{item.meta}</p> : null}
                       <p className="mt-2 font-medium text-black/86">{item.title}</p>
-                      {item.body ? <p className="mt-2 text-sm leading-7 text-black/62">{item.body}</p> : null}
+                      {item.body ? <p className={cn("mt-2 text-sm leading-7", isScaffoldingCopy(item.body) ? "text-black/48 italic" : "text-black/60")}>{item.body}</p> : null}
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-[1.6rem] border border-black/8 bg-[color:var(--lpf-primary)] px-5 py-5 text-white shadow-[0_24px_65px_-45px_rgba(20,12,18,0.55)]">
-                <p className="text-[11px] uppercase tracking-[0.22em] text-white/65">Investment and CTA</p>
-                <p className="mt-3 font-heading text-3xl leading-tight">{section.subheadline ?? "Clarify the investment"}</p>
-                <p className="mt-3 text-sm leading-7 text-white/78">{itemBody(section, "Use this area for the final offer framing and what the visitor gets when they book.")}</p>
+              <div className="rounded-[1.85rem] border border-black/0 bg-[color:var(--lpf-primary)] px-5 py-5 text-white shadow-[0_24px_65px_-42px_rgba(20,12,18,0.56)]">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-white/62">Investment and CTA</p>
+                <p className="mt-3 font-heading text-[2.35rem] leading-tight tracking-[-0.02em]">{section.subheadline ?? "Clarify the investment"}</p>
+                <p className={cn("mt-3 text-sm leading-7", isScaffoldingCopy(section.body) ? "text-white/70 italic" : "text-white/80")}>
+                  {itemBody(section, "Use this area for the final offer framing and what the visitor gets when they book.")}
+                </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   {section.ctaLabel ? <PreviewButton label={section.ctaLabel} href={offerPrimaryHref} variant="secondary" /> : null}
                   <PreviewButton label="Compare options" href={compareHref} variant="outline" />
@@ -535,11 +663,11 @@ function PreviewSection({
       const promisePrimaryHref = section.ctaHref ?? primaryHref;
       return (
         <section
-          className="overflow-hidden rounded-[2.1rem] border border-[color:var(--lpf-accent)]/40 bg-[linear-gradient(140deg,rgba(255,248,244,0.98),rgba(255,255,255,0.94))] px-6 py-7 shadow-[0_24px_70px_-48px_rgba(20,12,18,0.44)] md:px-8"
+          className="overflow-hidden rounded-[2.3rem] border border-[#eadccf] bg-[linear-gradient(140deg,rgba(255,248,244,0.98),rgba(255,255,255,0.94))] px-6 py-7 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.44)] md:px-8"
           id={section.id}
         >
-          <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr] xl:items-center">
-            <div className="space-y-4">
+          <div className="grid gap-8 xl:grid-cols-[1.02fr_0.98fr] xl:items-center">
+            <div className="space-y-5">
               <SectionIntro section={section} />
               {section.ctaLabel ? (
                 <div className="pt-2">
@@ -550,7 +678,7 @@ function PreviewSection({
 
             <div className="grid gap-3">
               {sectionHighlights(section, ["Lower the fear", "Name the concern", "Give the visitor a reason to trust the next step"]).map((bullet) => (
-                <div key={bullet} className="rounded-[1.3rem] border border-black/8 bg-white/94 px-4 py-4 text-sm leading-7 text-black/66 shadow-[0_18px_45px_-38px_rgba(20,12,18,0.38)]">
+                <div key={bullet} className="rounded-[1.45rem] border border-[#e5d8ce] bg-white/94 px-5 py-4 text-sm leading-7 text-black/66 shadow-[0_18px_45px_-38px_rgba(20,12,18,0.38)]">
                   {bullet}
                 </div>
               ))}
@@ -561,7 +689,7 @@ function PreviewSection({
     }
     case "process": {
       return (
-        <section className="rounded-[2.05rem] border border-black/8 bg-white px-6 py-6 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.44)] md:px-8 md:py-8" id={section.id}>
+        <section className="rounded-[2.2rem] border border-[#e6dad0] bg-white px-6 py-7 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.44)] md:px-8 md:py-8" id={section.id}>
           <div className="space-y-6">
             <SectionIntro section={section} align="center" />
             <div className="grid gap-4 xl:grid-cols-4">
@@ -575,7 +703,7 @@ function PreviewSection({
     }
     case "testimonials": {
       return (
-        <section className="rounded-[2.05rem] border border-black/8 bg-[rgba(255,251,247,0.94)] px-6 py-6 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.44)] md:px-8 md:py-8" id={section.id}>
+        <section className="rounded-[2.2rem] border border-[#e8dbd1] bg-[rgba(255,251,247,0.96)] px-6 py-7 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.44)] md:px-8 md:py-8" id={section.id}>
           <div className="space-y-6">
             <SectionIntro section={section} align="center" />
             <div className="grid gap-4 xl:grid-cols-3">
@@ -589,7 +717,7 @@ function PreviewSection({
     }
     case "faq": {
       return (
-        <section className="rounded-[2.05rem] border border-black/8 bg-white px-6 py-6 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.44)] md:px-8 md:py-8" id={section.id}>
+        <section className="rounded-[2.2rem] border border-[#e6dad0] bg-white px-6 py-7 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.44)] md:px-8 md:py-8" id={section.id}>
           <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
             <div className="space-y-4">
               <SectionIntro section={section} />
@@ -622,8 +750,8 @@ function PreviewSection({
       );
       const locationPrimaryHref = section.ctaHref ?? primaryHref;
       return (
-        <section className="rounded-[2.05rem] border border-black/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,244,239,0.96))] px-6 py-6 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.44)] md:px-8 md:py-8" id={section.id}>
-          <div className="grid gap-6 xl:grid-cols-[0.96fr_1.04fr]">
+        <section className="rounded-[2.2rem] border border-[#e6dad0] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,244,239,0.96))] px-6 py-7 shadow-[0_26px_70px_-48px_rgba(20,12,18,0.44)] md:px-8 md:py-8" id={section.id}>
+          <div className="grid gap-8 xl:grid-cols-[0.94fr_1.06fr]">
             <div className="space-y-5">
               <SectionIntro section={section} />
               <div className="flex flex-wrap gap-2">
@@ -649,14 +777,14 @@ function PreviewSection({
                 note="Trust cue"
                 aspectClass="aspect-[4/3]"
               />
-              <div className="rounded-[1.7rem] border border-black/8 bg-white p-5 shadow-[0_22px_60px_-42px_rgba(20,12,18,0.42)]">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/42">Trust details</p>
+              <div className="rounded-[1.8rem] border border-[#e4d7ce] bg-white p-5 shadow-[0_22px_60px_-42px_rgba(20,12,18,0.42)]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/38">Trust details</p>
                 <div className="mt-4 grid gap-3">
                   {section.items.map((item) => (
-                    <div key={item.id} className="rounded-[1.2rem] border border-black/8 bg-[color:var(--lpf-surface)] px-4 py-4">
-                      {item.meta ? <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--lpf-primary)]">{item.meta}</p> : null}
+                    <div key={item.id} className="rounded-[1.3rem] border border-[#e5d8ce] bg-[color:var(--lpf-surface)] px-4 py-4">
+                      {item.meta ? <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--lpf-primary)]">{item.meta}</p> : null}
                       <p className="mt-2 font-medium text-black/86">{item.title}</p>
-                      {item.body ? <p className="mt-2 text-sm leading-7 text-black/62">{item.body}</p> : null}
+                      {item.body ? <p className={cn("mt-2 text-sm leading-7", isScaffoldingCopy(item.body) ? "text-black/48 italic" : "text-black/60")}>{item.body}</p> : null}
                     </div>
                   ))}
                 </div>
@@ -671,17 +799,17 @@ function PreviewSection({
       const faqHref = resolveSectionHref(draft, "faq") ?? resolveSectionHref(draft, "location") ?? finalPrimaryHref;
       return (
         <section
-          className="relative overflow-hidden rounded-[2.25rem] px-6 py-10 text-white shadow-[0_32px_90px_-48px_rgba(20,12,18,0.6)] md:px-8"
+          className="relative overflow-hidden rounded-[2.45rem] px-6 py-12 text-white shadow-[0_32px_90px_-48px_rgba(20,12,18,0.6)] md:px-8"
           id={section.id}
           style={{ background: "linear-gradient(135deg,var(--lpf-primary),color-mix(in srgb,var(--lpf-accent) 68%, white 12%))" }}
         >
           <div className="absolute left-0 top-0 size-64 rounded-full bg-white/10 blur-3xl" />
           <div className="absolute bottom-0 right-0 size-72 rounded-full bg-black/10 blur-3xl" />
           <div className="relative mx-auto max-w-3xl space-y-5 text-center">
-            {section.eyebrow ? <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/68">{section.eyebrow}</p> : null}
-            {section.headline ? <h2 className="font-heading text-4xl leading-[1.02] md:text-5xl">{section.headline}</h2> : null}
-            {section.subheadline ? <p className="text-lg leading-8 text-white/84">{section.subheadline}</p> : null}
-            {section.body ? <p className="text-sm leading-8 text-white/76">{section.body}</p> : null}
+            {section.eyebrow ? <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/66">{section.eyebrow}</p> : null}
+            {section.headline ? <h2 className="font-heading text-[2.8rem] leading-[0.95] tracking-[-0.02em] md:text-[4.2rem]">{section.headline}</h2> : null}
+            {section.subheadline ? <p className={cn("text-lg leading-8 text-white/84", isScaffoldingCopy(section.subheadline) && "italic")}>{section.subheadline}</p> : null}
+            {section.body ? <p className={cn("text-sm leading-8", isScaffoldingCopy(section.body) ? "text-white/68 italic" : "text-white/76")}>{section.body}</p> : null}
             {section.badge ? (
               <div className="flex justify-center">
                 <PreviewPill>{section.badge}</PreviewPill>
@@ -710,7 +838,7 @@ function LandingPageSections({
   const assetLookup = new Map(assetSources.map((asset) => [`${asset.kind}:${asset.id}`, asset] as const));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6 md:space-y-8">
       {draft.sections
         .filter((section) => section.enabled)
         .map((section) => (
@@ -739,12 +867,12 @@ export function LandingPagePublicPage({
   return (
     <main
       className={cn(
-        "min-h-screen bg-[linear-gradient(180deg,#f7ede8_0%,#fff9f6_34%,#f3e5db_100%)] text-[color:var(--lpf-text)]",
+        "min-h-screen bg-[radial-gradient(circle_at_top,#fffdfb_0%,#fbf4ee_34%,#f0e0d4_100%)] text-[color:var(--lpf-text)]",
         className,
       )}
       style={styles}
     >
-      <div className="mx-auto max-w-6xl px-3 py-4 md:px-6 md:py-6">
+      <div className="mx-auto max-w-6xl px-3 py-5 md:px-6 md:py-8">
         <LandingPageSections draft={draft} assetSources={assetSources} />
       </div>
     </main>
@@ -772,41 +900,35 @@ export function LandingPagePreview({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[2.2rem] border border-black/10 bg-[linear-gradient(180deg,#f4ebe5,#efe1d7)] p-3 shadow-[0_35px_90px_-55px_rgba(20,12,18,0.6)]",
+        "relative overflow-hidden rounded-[2.4rem] border border-[#ddcec3] bg-[linear-gradient(180deg,#f3e7de,#ead9ce)] p-3 shadow-[0_38px_96px_-56px_rgba(20,12,18,0.62)] md:p-4",
         className,
       )}
     >
-      <div className="absolute inset-x-10 top-0 h-32 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.75),transparent_72%)]" />
+      <div className="absolute inset-x-10 top-0 h-32 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.78),transparent_72%)]" />
       <div
         className={cn(
-          "relative mx-auto min-h-[760px] rounded-[1.85rem] border border-black/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,244,239,0.98))] p-4 text-[color:var(--lpf-text)] shadow-inner md:p-5",
-          mode === "mobile" ? "max-w-sm" : "max-w-6xl",
+          "relative mx-auto min-h-[760px] rounded-[2rem] border border-[#e4d6cb] bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(250,244,239,0.98))] p-4 text-[color:var(--lpf-text)] shadow-inner md:p-5",
+          mode === "mobile" ? "max-w-[26rem]" : "max-w-6xl",
         )}
         style={styles}
       >
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[1.4rem] border border-black/8 bg-white/78 px-4 py-3 backdrop-blur md:px-5">
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-black/40">Landing Page Factory Preview</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="font-heading text-xl">{draft.theme.brandName}</p>
-              {draft.theme.tagLine ? <p className="text-sm text-black/56">{draft.theme.tagLine}</p> : null}
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-full border border-[#e3d7cd] bg-white/82 px-4 py-3 backdrop-blur">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-[#d9b7a7]" />
+              <span className="size-2 rounded-full bg-[#d5c4b9]" />
+              <span className="size-2 rounded-full bg-[#e5ddd7]" />
             </div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-black/38">{draft.theme.brandName}</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-right">
-            <div className="text-xs text-black/52">
-              <p>{draft.slug}</p>
-              <p>{mode === "mobile" ? "Mobile preview" : "Desktop preview"}</p>
-            </div>
-            <PreviewButton label={draft.form.submitLabel} />
+          <div className="flex flex-wrap items-center gap-2">
+            <PreviewPill subtle>{mode === "mobile" ? "Mobile preview" : "Desktop preview"}</PreviewPill>
+            {draft.theme.urgencyLabel ? <PreviewPill subtle>{draft.theme.urgencyLabel}</PreviewPill> : null}
           </div>
         </div>
 
-        <div className="mb-5 flex flex-wrap gap-2 rounded-full border border-black/8 bg-white/75 px-4 py-3">
-          <PreviewPill subtle>{draft.seo.metaTitle}</PreviewPill>
-          {draft.social.shareHeadline ? <PreviewPill subtle>{draft.social.shareHeadline}</PreviewPill> : null}
-          {draft.theme.urgencyLabel ? <PreviewPill subtle>{draft.theme.urgencyLabel}</PreviewPill> : null}
-        </div>
+        <p className="mb-6 px-1 text-[11px] uppercase tracking-[0.22em] text-black/34">{draft.slug}</p>
 
         <LandingPageSections draft={draft} assetSources={assetSources} />
       </div>
