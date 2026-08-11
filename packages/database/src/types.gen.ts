@@ -1198,11 +1198,15 @@ export interface Database {
           id: string;
           organisation_id: string;
           source_project_id: string | null;
+          source_landing_page_version_id: string | null;
+          source_section_id: string | null;
           name: string;
           category:
             | "hero"
             | "navigation"
+            | "results"
             | "offer"
+            | "promise"
             | "pricing"
             | "reviews"
             | "testimonials"
@@ -1214,7 +1218,9 @@ export interface Database {
             | "faq"
             | "form"
             | "trust_bar"
+            | "process"
             | "cta"
+            | "final_cta"
             | "countdown"
             | "location"
             | "video"
@@ -1229,6 +1235,7 @@ export interface Database {
           conversion_purpose: string | null;
           client_restrictions: string | null;
           approval_status: "pending_review" | "approved" | "rejected";
+          section_payload: Json;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;

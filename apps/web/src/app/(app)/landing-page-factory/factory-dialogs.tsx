@@ -20,17 +20,38 @@ import {
   advancePageStatus,
   approveBrief,
   cloneTemplate,
+  createTemplateFromComponents,
   createTemplateFromPreset,
   createBrief,
   createPageProject,
   publishPage,
   recordQaRun,
+  setReusableComponentApprovalStatus,
   setBuildProjectReuse,
 } from "./actions";
 
 export interface Option {
   id: string;
   name: string;
+}
+
+export interface ReusableComponentOption extends Option {
+  category: string;
+}
+
+const DEPLOYMENT_PROVIDER_OPTIONS = [
+  { value: "manual", label: "Manual" },
+  { value: "vercel", label: "Vercel" },
+  { value: "netlify", label: "Netlify" },
+  { value: "cloudflare_pages", label: "Cloudflare Pages" },
+  { value: "replit", label: "Replit" },
+] as const;
+
+type DeploymentProviderValue = (typeof DEPLOYMENT_PROVIDER_OPTIONS)[number]["value"];
+
+function parseDeploymentProvider(value: FormDataEntryValue | null): DeploymentProviderValue {
+  const raw = typeof value === "string" ? value : "";
+  return DEPLOYMENT_PROVIDER_OPTIONS.find((option) => option.value === raw)?.value ?? "manual";
 }
 
 export function AddBuildProjectDialog({ clients }: { clients: Option[] }) {
@@ -418,21 +439,66 @@ export function PageStatusActions({ projectId, status }: { projectId: string; st
   return (
     <div className="flex flex-wrap gap-1.5">
       {actions.map((action) => (
-        <Button
-          key={action.to}
-          size="sm"
-          variant="outline"
-          disabled={isPending}
-          onClick={() => {
-            const previewUrl = action.needsPreviewUrl
-              ? window.prompt("Preview URL for this page:") ?? undefined
-              : undefined;
-            if (action.needsPreviewUrl && !previewUrl) return;
-            startTransition(() => advancePageStatus(projectId, action.to, previewUrl));
-          }}
-        >
-          {action.label}
-        </Button>
+        action.needsPreviewUrl ? (
+          <Dialog key={action.to}>
+            <DialogTrigger
+              render={
+                <Button size="sm" variant="outline" disabled={isPending}>
+                  {action.label}
+                </Button>
+              }
+            />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{action.label}</DialogTitle>
+                <DialogDescription>
+                  Record the preview deployment explicitly so the next approval step stays tied to a real URL.
+                </DialogDescription>
+              </DialogHeader>
+              <form
+                action={async (formData) => {
+                  const previewUrl = String(formData.get("previewUrl") ?? "").trim();
+                  const provider = parseDeploymentProvider(formData.get("provider"));
+                  await advancePageStatus(projectId, action.to, previewUrl, provider);
+                }}
+                className="space-y-3"
+              >
+                <div className="space-y-1.5">
+                  <Label htmlFor={`preview-url-${projectId}`}>Preview URL</Label>
+                  <Input id={`preview-url-${projectId}`} name="previewUrl" type="url" required placeholder="https://..." />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`preview-provider-${projectId}`}>Provider</Label>
+                  <select
+                    id={`preview-provider-${projectId}`}
+                    name="provider"
+                    defaultValue="manual"
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  >
+                    {DEPLOYMENT_PROVIDER_OPTIONS.map((provider) => (
+                      <option key={provider.value} value={provider.value}>
+                        {provider.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Button type="submit" className="w-full">
+                  Save preview deployment
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <Button
+            key={action.to}
+            size="sm"
+            variant="outline"
+            disabled={isPending}
+            onClick={() => startTransition(() => advancePageStatus(projectId, action.to))}
+          >
+            {action.label}
+          </Button>
+        )
       ))}
     </div>
   );
@@ -552,6 +618,101 @@ export function CloneTemplateDialog({ templateId, templateName }: { templateId: 
   );
 }
 
+export function ReusableComponentApprovalButtons({
+  componentId,
+  status,
+}: {
+  componentId: string;
+  status: string;
+}) {
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <div className="flex gap-1.5">
+      {status !== "approved" ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={isPending}
+          onClick={() => startTransition(() => setReusableComponentApprovalStatus(componentId, "approved"))}
+        >
+          <ShieldCheck className="mr-1 size-3.5" /> Approve
+        </Button>
+      ) : null}
+      {status !== "rejected" ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={isPending}
+          onClick={() => startTransition(() => setReusableComponentApprovalStatus(componentId, "rejected"))}
+        >
+          Reject
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+export function BuildTemplateFromComponentsDialog({
+  components,
+}: {
+  components: ReusableComponentOption[];
+}) {
+  const [open, setOpen] = useState(false);
+  if (components.length === 0) {
+    return (
+      <Button size="sm" variant="outline" disabled>
+        Build from components
+      </Button>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button size="sm" variant="outline">Build from components</Button>} />
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Create template from approved components</DialogTitle>
+          <DialogDescription>
+            Select approved reusable sections. IHP OS will arrange them into a sensible landing-page order automatically.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          action={async (formData) => {
+            await createTemplateFromComponents(formData);
+            setOpen(false);
+          }}
+          className="space-y-3"
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="component-template-name">Template name</Label>
+            <Input id="component-template-name" name="name" required placeholder="Offer page from approved components" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="component-template-description">Description</Label>
+            <Textarea id="component-template-description" name="description" rows={3} />
+          </div>
+          <div className="space-y-2 rounded-xl border border-border/70 p-4">
+            <p className="text-sm font-medium">Approved components</p>
+            {components.map((component) => (
+              <label key={component.id} className="flex items-start gap-3 rounded-lg border border-border/60 px-3 py-2">
+                <input type="checkbox" name="componentIds" value={component.id} className="mt-1" />
+                <span className="min-w-0">
+                  <span className="block font-medium">{component.name}</span>
+                  <span className="text-xs text-muted-foreground capitalize">{component.category.replace(/_/g, " ")}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <Button type="submit" className="w-full">
+            Create template
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PublishDialog({
   projectId,
   projectName,
@@ -593,6 +754,16 @@ export function PublishDialog({
           <div className="space-y-1.5">
             <Label htmlFor="publish-url">Production URL</Label>
             <Input id="publish-url" name="productionUrl" type="url" required placeholder="https://..." />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="publish-provider">Provider</Label>
+            <select id="publish-provider" name="provider" defaultValue="manual" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+              {DEPLOYMENT_PROVIDER_OPTIONS.map((provider) => (
+                <option key={provider.value} value={provider.value}>
+                  {provider.label}
+                </option>
+              ))}
+            </select>
           </div>
           <Button type="submit" className="w-full">
             Publish

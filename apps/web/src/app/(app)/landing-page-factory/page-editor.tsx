@@ -7,11 +7,20 @@ import type { LandingPageDraft, LandingPageSection, LandingPageSectionItem } fro
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { LandingPagePreview } from "./preview";
 import {
+  createReusableComponentFromVersion,
   recordPerformanceRecord,
   rollbackPublishedVersion,
   saveDraftVersion,
@@ -53,6 +62,14 @@ interface LinkedTaskItem {
   title: string;
   status: string;
 }
+
+const DEPLOYMENT_PROVIDER_OPTIONS = [
+  { value: "manual", label: "Manual" },
+  { value: "vercel", label: "Vercel" },
+  { value: "netlify", label: "Netlify" },
+  { value: "cloudflare_pages", label: "Cloudflare Pages" },
+  { value: "replit", label: "Replit" },
+] as const;
 
 function splitLines(value: string): string[] {
   return value
@@ -108,18 +125,216 @@ function VersionStatusBadge({ status }: { status: string }) {
   );
 }
 
+function PromoteSectionDialog({
+  section,
+  versionId,
+  onPromoted,
+}: {
+  section: LandingPageSection;
+  versionId: string | null;
+  onPromoted: (message: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  if (!versionId) {
+    return (
+      <Button size="sm" variant="outline" disabled title="Save this draft version first to promote a reusable section.">
+        Promote
+      </Button>
+    );
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setErrorMessage(null);
+      }}
+    >
+      <DialogTrigger
+        render={
+          <Button size="sm" variant="outline" disabled={isPending}>
+            Promote
+          </Button>
+        }
+      />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Promote section to reusable library</DialogTitle>
+          <DialogDescription>
+            This saves the exact section from the current version snapshot into the reusable component library. It still
+            needs approval before template builders can reuse it across clients.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          action={async (formData) => {
+            setErrorMessage(null);
+            startTransition(async () => {
+              try {
+                formData.set("versionId", versionId);
+                formData.set("sectionId", section.id);
+                await createReusableComponentFromVersion(formData);
+                setOpen(false);
+                onPromoted(`${section.label} was promoted into the reusable library for review.`);
+              } catch (error) {
+                setErrorMessage(error instanceof Error ? error.message : "Unable to promote this section right now.");
+              }
+            });
+          }}
+          className="space-y-3"
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor={`promote-name-${section.id}`}>Component name</Label>
+            <Input id={`promote-name-${section.id}`} name="name" required defaultValue={section.label} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`promote-purpose-${section.id}`}>Conversion purpose</Label>
+            <Input
+              id={`promote-purpose-${section.id}`}
+              name="conversionPurpose"
+              defaultValue={section.label}
+              placeholder="What job this section does on the page"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`promote-analytics-${section.id}`}>Analytics events</Label>
+            <Input
+              id={`promote-analytics-${section.id}`}
+              name="analyticsEvents"
+              placeholder="e.g. hero_cta_click, faq_expand"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`promote-accessibility-${section.id}`}>Accessibility notes</Label>
+            <Textarea
+              id={`promote-accessibility-${section.id}`}
+              name="accessibilityNotes"
+              rows={3}
+              placeholder="Any alt-text, contrast, focus, or reading-order notes reviewers should keep with this section"
+            />
+          </div>
+          {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
+          <Button type="submit" className="w-full" disabled={isPending}>
+            Save reusable component
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RollbackVersionDialog({
+  projectId,
+  version,
+  productionUrl,
+  onRecorded,
+}: {
+  projectId: string;
+  version: VersionHistoryItem;
+  productionUrl: string | null;
+  onRecorded: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setErrorMessage(null);
+      }}
+    >
+      <DialogTrigger
+        render={
+          <Button size="sm" variant="outline" disabled={isPending}>
+            <RefreshCw className="mr-2 size-4" /> Roll back to this version
+          </Button>
+        }
+      />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Roll back live page</DialogTitle>
+          <DialogDescription>
+            Record which production URL and hosting provider now serve this exact approved version. This keeps the
+            rollback audit trail explicit.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          action={async (formData) => {
+            setErrorMessage(null);
+            startTransition(async () => {
+              try {
+                formData.set("projectId", projectId);
+                formData.set("versionId", version.id);
+                await rollbackPublishedVersion(formData);
+                setOpen(false);
+                onRecorded(`Rollback recorded for ${version.version_name}.`);
+                router.refresh();
+              } catch (error) {
+                setErrorMessage(error instanceof Error ? error.message : "Unable to record the rollback right now.");
+              }
+            });
+          }}
+          className="space-y-3"
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor={`rollback-url-${version.id}`}>Production URL</Label>
+            <Input
+              id={`rollback-url-${version.id}`}
+              name="productionUrl"
+              type="url"
+              required
+              defaultValue={productionUrl ?? ""}
+              placeholder="https://..."
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`rollback-provider-${version.id}`}>Provider</Label>
+            <select
+              id={`rollback-provider-${version.id}`}
+              name="provider"
+              defaultValue="manual"
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            >
+              {DEPLOYMENT_PROVIDER_OPTIONS.map((provider) => (
+                <option key={provider.value} value={provider.value}>
+                  {provider.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
+          <Button type="submit" className="w-full" disabled={isPending}>
+            Record rollback
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SectionEditor({
   section,
   index,
   count,
+  versionId,
   onChange,
   onMove,
+  onPromoted,
 }: {
   section: LandingPageSection;
   index: number;
   count: number;
+  versionId: string | null;
   onChange: (section: LandingPageSection) => void;
   onMove: (direction: -1 | 1) => void;
+  onPromoted: (message: string) => void;
 }) {
   const updateItem = (itemId: string, updater: (item: LandingPageSectionItem) => LandingPageSectionItem) => {
     onChange({
@@ -145,6 +360,7 @@ function SectionEditor({
               />
               Enabled
             </label>
+            <PromoteSectionDialog section={section} versionId={versionId} onPromoted={onPromoted} />
             <Button size="icon" variant="outline" disabled={index === 0} onClick={() => onMove(-1)}>
               <ChevronUp className="size-4" />
             </Button>
@@ -345,15 +561,6 @@ export function LandingPageEditor({
       if (previewUrl) formData.set("previewUrl", previewUrl);
       await submitVersionForApproval(formData);
     }, "Version submitted for client approval.");
-
-  const createRollback = (targetVersionId: string) =>
-    runAction(async () => {
-      const formData = new FormData();
-      formData.set("projectId", projectId);
-      formData.set("versionId", targetVersionId);
-      if (productionUrl) formData.set("productionUrl", productionUrl);
-      await rollbackPublishedVersion(formData);
-    }, "Rollback recorded.");
 
   const submitPerformance = (formData: FormData) =>
     runAction(async () => {
@@ -608,6 +815,7 @@ export function LandingPageEditor({
               section={section}
               index={index}
               count={draft.sections.length}
+              versionId={versionId}
               onMove={(direction) => setDraft({ ...draft, sections: moveSection(draft.sections, index, direction) })}
               onChange={(nextSection) =>
                 setDraft({
@@ -615,6 +823,7 @@ export function LandingPageEditor({
                   sections: updateSection(draft.sections, nextSection.id, () => nextSection),
                 })
               }
+              onPromoted={setMessage}
             />
           ))}
 
@@ -763,9 +972,14 @@ export function LandingPageEditor({
                     <VersionStatusBadge status={version.status} />
                   </div>
                   {version.status === "published" || version.status === "approved" ? (
-                    <Button className="mt-3" size="sm" variant="outline" disabled={isPending} onClick={() => createRollback(version.id)}>
-                      <RefreshCw className="mr-2 size-4" /> Roll back to this version
-                    </Button>
+                    <div className="mt-3">
+                      <RollbackVersionDialog
+                        projectId={projectId}
+                        version={version}
+                        productionUrl={productionUrl}
+                        onRecorded={setMessage}
+                      />
+                    </div>
                   ) : null}
                 </div>
               ))}

@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  buildLandingPageTemplateDraftFromComponents,
   canPublishLandingPage,
+  landingPageSectionSchema,
+  mapLandingPageSectionKindToReusableCategory,
   normaliseLandingPageDraft,
   summariseQaRun,
   validateLandingPageClientIsolation,
@@ -17,9 +20,49 @@ import { slugify } from "@/lib/utils";
 import { isRuleEnabled, notifyUsers, recordRun } from "@/lib/automations/engine";
 import { buildDraftFromPreset, buildPresetSkeleton } from "./template-presets";
 
+type DeploymentProvider = "vercel" | "netlify" | "cloudflare_pages" | "replit" | "manual";
+
 function str(formData: FormData, key: string): string | null {
   const value = String(formData.get(key) ?? "").trim();
   return value || null;
+}
+
+function strs(formData: FormData, key: string): string[] {
+  return formData
+    .getAll(key)
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+}
+
+function deploymentProviderFrom(value: string | null): DeploymentProvider {
+  switch (value) {
+    case "vercel":
+    case "netlify":
+    case "cloudflare_pages":
+    case "replit":
+      return value;
+    default:
+      return "manual";
+  }
+}
+
+function templateKeyFromName(value: string): string {
+  return slugify(value).replace(/-/g, "_");
+}
+
+function describeEditableFields() {
+  return [
+    "eyebrow",
+    "headline",
+    "subheadline",
+    "body",
+    "badge",
+    "ctaLabel",
+    "ctaHref",
+    "bullets",
+    "items",
+    "notes",
+  ].join(", ");
 }
 
 function parseDraft(formData: FormData): LandingPageDraft {
@@ -263,6 +306,93 @@ export async function setBuildProjectReuse(
   });
 
   revalidatePath("/landing-page-factory");
+}
+
+export async function setReusableComponentApprovalStatus(
+  componentId: string,
+  status: "approved" | "rejected",
+): Promise<void> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+  await requirePermission(supabase, session.organisationId, "landing_page_factory", "approve");
+
+  const { error } = await supabase
+    .from("reusable_components")
+    .update({ approval_status: status })
+    .eq("id", componentId);
+  if (error) throw new Error(error.message);
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: "update",
+    resource: "reusable_components",
+    resourceId: componentId,
+    metadata: { approvalStatus: status },
+  });
+
+  revalidatePath("/landing-page-factory");
+}
+
+export async function createReusableComponentFromVersion(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+
+  const versionId = str(formData, "versionId");
+  const sectionId = str(formData, "sectionId");
+  const name = str(formData, "name");
+  if (!versionId || !sectionId || !name) {
+    throw new Error("Version, section, and component name are required.");
+  }
+
+  const { data: version, error: versionError } = await supabase
+    .from("landing_page_versions")
+    .select("id, organisation_id, client_id, landing_page_project_id, sections")
+    .eq("id", versionId)
+    .single();
+  if (versionError) throw new Error(versionError.message);
+
+  await requirePermission(supabase, session.organisationId, "landing_page_factory", "update", version.client_id);
+
+  const sections = landingPageSectionSchema.array().parse(version.sections);
+  const section = sections.find((candidate) => candidate.id === sectionId);
+  if (!section) {
+    throw new Error("That section could not be found in the selected version.");
+  }
+
+  const { data: component, error } = await supabase
+    .from("reusable_components")
+    .insert({
+      organisation_id: version.organisation_id,
+      source_landing_page_version_id: version.id,
+      source_section_id: section.id,
+      name,
+      category: mapLandingPageSectionKindToReusableCategory(section.kind),
+      code_reference: `landing_page_versions:${version.id}#${section.id}`,
+      props_notes: section.notes,
+      editable_fields: describeEditableFields(),
+      accessibility_notes: str(formData, "accessibilityNotes"),
+      analytics_events: str(formData, "analyticsEvents"),
+      conversion_purpose: str(formData, "conversionPurpose") ?? section.label,
+      approval_status: "pending_review",
+      section_payload: toJson(section),
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  await writeAuditLog(supabase, {
+    organisationId: version.organisation_id,
+    actorUserId: session.userId,
+    action: "create",
+    resource: "reusable_components",
+    resourceId: component.id,
+    clientId: version.client_id,
+    metadata: { versionId, sectionId, name },
+  });
+
+  revalidatePath("/landing-page-factory");
+  revalidatePath(`/landing-page-factory/${version.landing_page_project_id}`);
 }
 
 export async function createBrief(formData: FormData): Promise<void> {
@@ -531,6 +661,7 @@ export async function advancePageStatus(
   projectId: string,
   nextStatus: PageStatus,
   previewUrl?: string,
+  provider?: DeploymentProvider,
 ): Promise<void> {
   const session = await requireSession();
   const supabase = await getSupabaseServerClient();
@@ -565,7 +696,7 @@ export async function advancePageStatus(
       organisation_id: session.organisationId,
       landing_page_project_id: projectId,
       environment: "preview",
-      provider: "manual",
+      provider: provider ?? "manual",
       url: previewUrl.trim(),
       status: "succeeded",
       triggered_by: session.userId,
@@ -579,10 +710,15 @@ export async function advancePageStatus(
     resource: "landing_page_projects",
     resourceId: projectId,
     clientId: project.client_id,
-    metadata: { status: nextStatus },
+    metadata: {
+      status: nextStatus,
+      previewUrl: previewUrl?.trim() ?? null,
+      provider: previewUrl?.trim() ? provider ?? "manual" : null,
+    },
   });
 
   revalidatePath("/landing-page-factory");
+  revalidatePath(`/landing-page-factory/${projectId}`);
   revalidatePath("/client-portal");
 }
 
@@ -736,6 +872,77 @@ export async function cloneTemplate(formData: FormData): Promise<void> {
     resource: "landing_page_templates",
     resourceId: clone.id,
     metadata: { clonedFromTemplateId: template.id, name },
+  });
+
+  revalidatePath("/landing-page-factory");
+}
+
+export async function createTemplateFromComponents(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+  await requirePermission(supabase, session.organisationId, "landing_page_factory", "update");
+
+  const name = str(formData, "name");
+  if (!name) throw new Error("Template name is required");
+
+  const componentIds = strs(formData, "componentIds");
+  if (componentIds.length === 0) {
+    throw new Error("Select at least one approved reusable component.");
+  }
+
+  const { data: components, error: componentsError } = await supabase
+    .from("reusable_components")
+    .select("id, name, category, approval_status, section_payload")
+    .in("id", componentIds);
+  if (componentsError) throw new Error(componentsError.message);
+
+  if (!components || components.length !== componentIds.length) {
+    throw new Error("One or more reusable components could not be found.");
+  }
+  if (components.some((component) => component.approval_status !== "approved")) {
+    throw new Error("Only approved reusable components can be used in a shared template.");
+  }
+
+  const orderedComponents = componentIds
+    .map((componentId) => components.find((component) => component.id === componentId) ?? null)
+    .filter((component): component is NonNullable<typeof component> => Boolean(component));
+
+  const draft = buildLandingPageTemplateDraftFromComponents({
+    templateName: name,
+    components: orderedComponents.map((component) => ({
+      id: component.id,
+      name: component.name,
+      category: component.category,
+      sectionPayload: component.section_payload,
+    })),
+  });
+
+  const { data: template, error } = await supabase
+    .from("landing_page_templates")
+    .insert({
+      organisation_id: session.organisationId,
+      name,
+      slug: slugify(name),
+      description: str(formData, "description"),
+      category: "offer_landing_page",
+      source: "native",
+      template_key: templateKeyFromName(name),
+      structure: toJson(draft.sections),
+      defaults: draftToTemplateDefaults(draft),
+      preview_config: toJson({ versionName: draft.versionName, componentIds }),
+      created_by: session.userId,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: "create",
+    resource: "landing_page_templates",
+    resourceId: template.id,
+    metadata: { name, componentIds },
   });
 
   revalidatePath("/landing-page-factory");
@@ -957,20 +1164,6 @@ export async function submitVersionForApproval(formData: FormData): Promise<void
     .eq("id", projectId);
   if (projectUpdateError) throw new Error(projectUpdateError.message);
 
-  if (previewUrl) {
-    await supabase.from("deployments").insert({
-      organisation_id: session.organisationId,
-      landing_page_project_id: projectId,
-      landing_page_version_id: versionId,
-      environment: "preview",
-      provider: "manual",
-      url: previewUrl,
-      status: "succeeded",
-      deployment_kind: "publish",
-      triggered_by: session.userId,
-    });
-  }
-
   await writeAuditLog(supabase, {
     organisationId: session.organisationId,
     actorUserId: session.userId,
@@ -1053,6 +1246,7 @@ export async function publishPage(formData: FormData): Promise<void> {
 
   const projectId = str(formData, "projectId");
   const productionUrl = str(formData, "productionUrl");
+  const provider = deploymentProviderFrom(str(formData, "provider"));
   if (!projectId || !productionUrl) throw new Error("Project and production URL are required");
 
   const { data: project, error: fetchError } = await supabase
@@ -1129,7 +1323,7 @@ export async function publishPage(formData: FormData): Promise<void> {
     landing_page_project_id: projectId,
     landing_page_version_id: project.submitted_version_id,
     environment: "production",
-    provider: "manual",
+    provider,
     url: productionUrl,
     status: "succeeded",
     deployment_kind: "publish",
@@ -1143,7 +1337,7 @@ export async function publishPage(formData: FormData): Promise<void> {
     resource: "landing_page_projects",
     resourceId: projectId,
     clientId: project.client_id,
-    metadata: { published: true, productionUrl },
+    metadata: { published: true, productionUrl, provider },
   });
 
   // Automation: deployment succeeded → notify the project owner.
@@ -1170,6 +1364,7 @@ export async function rollbackPublishedVersion(formData: FormData): Promise<void
   const projectId = str(formData, "projectId");
   const versionId = str(formData, "versionId");
   const productionUrl = str(formData, "productionUrl");
+  const provider = deploymentProviderFrom(str(formData, "provider"));
   if (!projectId || !versionId) throw new Error("Project and version are required");
 
   const [{ data: project, error: projectError }, { data: version, error: versionError }] = await Promise.all([
@@ -1226,7 +1421,7 @@ export async function rollbackPublishedVersion(formData: FormData): Promise<void
     landing_page_project_id: projectId,
     landing_page_version_id: versionId,
     environment: "production",
-    provider: "manual",
+    provider,
     url: effectiveProductionUrl,
     status: "succeeded",
     deployment_kind: "rollback",
@@ -1240,7 +1435,7 @@ export async function rollbackPublishedVersion(formData: FormData): Promise<void
     resource: "landing_page_projects",
     resourceId: projectId,
     clientId: project.client_id,
-    metadata: { rollbackVersionId: versionId, productionUrl: effectiveProductionUrl },
+    metadata: { rollbackVersionId: versionId, productionUrl: effectiveProductionUrl, provider },
   });
 
   revalidatePath("/landing-page-factory");
