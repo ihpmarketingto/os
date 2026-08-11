@@ -13,6 +13,33 @@ export const landingPageSectionKindSchema = z.enum([
 ]);
 export type LandingPageSectionKind = z.infer<typeof landingPageSectionKindSchema>;
 
+export const reusableComponentCategorySchema = z.enum([
+  "hero",
+  "navigation",
+  "results",
+  "offer",
+  "promise",
+  "pricing",
+  "reviews",
+  "testimonials",
+  "before_after",
+  "product",
+  "booking",
+  "event",
+  "speaker",
+  "faq",
+  "form",
+  "trust_bar",
+  "process",
+  "cta",
+  "final_cta",
+  "countdown",
+  "location",
+  "video",
+  "footer",
+]);
+export type ReusableComponentCategory = z.infer<typeof reusableComponentCategorySchema>;
+
 export const landingPageSectionItemSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -156,6 +183,55 @@ export interface ClientIsolationResult {
   messages: string[];
 }
 
+export interface ReusableLandingPageComponentInput {
+  id: string;
+  name: string;
+  category: ReusableComponentCategory;
+  sectionPayload: unknown;
+}
+
+const SECTION_KIND_TO_REUSABLE_CATEGORY: Record<LandingPageSectionKind, ReusableComponentCategory> = {
+  hero: "hero",
+  results: "results",
+  offer: "offer",
+  promise: "promise",
+  process: "process",
+  testimonials: "testimonials",
+  faq: "faq",
+  location: "location",
+  final_cta: "final_cta",
+};
+
+const LANDING_PAGE_COMPONENT_ORDER: ReusableComponentCategory[] = [
+  "navigation",
+  "hero",
+  "results",
+  "before_after",
+  "offer",
+  "pricing",
+  "promise",
+  "product",
+  "reviews",
+  "testimonials",
+  "trust_bar",
+  "process",
+  "faq",
+  "video",
+  "speaker",
+  "event",
+  "location",
+  "form",
+  "booking",
+  "cta",
+  "final_cta",
+  "countdown",
+  "footer",
+];
+
+const LANDING_PAGE_COMPONENT_ORDER_INDEX = new Map(
+  LANDING_PAGE_COMPONENT_ORDER.map((category, index) => [category, index]),
+);
+
 export function validateLandingPageClientIsolation(
   expectedClientId: string,
   refs: ClientIsolationReference[],
@@ -179,4 +255,129 @@ export function validateLandingPageClientIsolation(
     violations,
     messages,
   };
+}
+
+export function mapLandingPageSectionKindToReusableCategory(
+  kind: LandingPageSectionKind,
+): ReusableComponentCategory {
+  return SECTION_KIND_TO_REUSABLE_CATEGORY[kind];
+}
+
+export function sortReusableComponentInputsForTemplate<T extends { category: ReusableComponentCategory; name: string }>(
+  components: T[],
+): T[] {
+  return [...components].sort((left, right) => {
+    const leftIndex = LANDING_PAGE_COMPONENT_ORDER_INDEX.get(left.category) ?? Number.MAX_SAFE_INTEGER;
+    const rightIndex = LANDING_PAGE_COMPONENT_ORDER_INDEX.get(right.category) ?? Number.MAX_SAFE_INTEGER;
+    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+    return left.name.localeCompare(right.name);
+  });
+}
+
+function slugifyTemplateValue(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "landing-page-template";
+}
+
+export function buildLandingPageSectionsFromReusableComponents(
+  components: ReusableLandingPageComponentInput[],
+): LandingPageSection[] {
+  const ordered = sortReusableComponentInputsForTemplate(components);
+  const usedIds = new Set<string>();
+
+  return ordered.map((component, index) => {
+    const parsed = landingPageSectionSchema.parse(component.sectionPayload);
+    const baseId = parsed.id.trim() || `${slugifyTemplateValue(component.name)}-${index + 1}`;
+    let nextId = baseId;
+    let suffix = 2;
+
+    while (usedIds.has(nextId)) {
+      nextId = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+
+    usedIds.add(nextId);
+
+    return {
+      ...parsed,
+      id: nextId,
+      label: parsed.label || component.name,
+    };
+  });
+}
+
+export function buildLandingPageTemplateDraftFromComponents(input: {
+  templateName: string;
+  components: ReusableLandingPageComponentInput[];
+}): LandingPageDraft {
+  const sections = buildLandingPageSectionsFromReusableComponents(input.components);
+  const slug = slugifyTemplateValue(input.templateName);
+  const firstHeadline = sections.find((section) => section.headline)?.headline ?? input.templateName;
+  const firstBody =
+    sections.find((section) => section.body)?.body ??
+    "Reusable landing page template assembled from approved components.";
+  const primaryCta =
+    sections.find((section) => section.ctaLabel)?.ctaLabel ??
+    "Book now";
+
+  return normaliseLandingPageDraft({
+    templateKey: slug.replace(/-/g, "_"),
+    templateName: input.templateName,
+    versionName: "Version 1",
+    title: `${input.templateName} page`,
+    slug,
+    subdomain: null,
+    domain: null,
+    theme: {
+      brandName: "Template brand",
+      tagLine: null,
+      primaryColour: "#7d3a46",
+      accentColour: "#d9a68b",
+      surfaceColour: "#fff8f5",
+      textColour: "#22181c",
+      logoLabel: "Template brand",
+      urgencyLabel: "Replace with client urgency",
+    },
+    sections,
+    form: {
+      ctaType: "booking_link",
+      bookingUrl: null,
+      externalCheckoutUrl: null,
+      submitLabel: primaryCta,
+      successMessage: "Thanks for your interest.",
+      collectPhone: true,
+      collectNotes: true,
+    },
+    tracking: {
+      metaPixelId: null,
+      ga4MeasurementId: null,
+      customEvents: [],
+      bookingDestinationLabel: null,
+      cookieConsentRequired: true,
+    },
+    seo: {
+      metaTitle: input.templateName,
+      metaDescription: firstBody,
+      canonicalUrl: null,
+      ogTitle: firstHeadline,
+      ogDescription: firstBody,
+    },
+    social: {
+      ogImageDocumentId: null,
+      socialProofLabel: null,
+      shareHeadline: firstHeadline,
+    },
+    assetSlots: [],
+    sourceContext: {
+      brandVoiceIds: [],
+      offerIds: [],
+      audienceIds: [],
+      restrictionIds: [],
+      proofIds: [],
+    },
+    notes: "Built from approved reusable components.",
+  });
 }

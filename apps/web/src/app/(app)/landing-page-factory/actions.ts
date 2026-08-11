@@ -2,8 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  buildLandingPageTemplateDraftFromComponents,
+  buildLandingPageProductionUrl,
+  buildLandingPagePreviewUrl,
   canPublishLandingPage,
+  landingPageSectionSchema,
+  mapLandingPageSectionKindToReusableCategory,
   normaliseLandingPageDraft,
+  resolveLandingPagePreviewVersionId,
   summariseQaRun,
   validateLandingPageClientIsolation,
   type LandingPageDraft,
@@ -13,13 +19,80 @@ import {
 import { requirePermission, writeAuditLog, type Json } from "@ihp/database";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { serverEnv } from "@/lib/env/server";
 import { slugify } from "@/lib/utils";
 import { isRuleEnabled, notifyUsers, recordRun } from "@/lib/automations/engine";
 import { buildDraftFromPreset, buildPresetSkeleton } from "./template-presets";
 
+type DeploymentProvider = "vercel" | "netlify" | "cloudflare_pages" | "replit" | "manual";
+
 function str(formData: FormData, key: string): string | null {
   const value = String(formData.get(key) ?? "").trim();
   return value || null;
+}
+
+function strs(formData: FormData, key: string): string[] {
+  return formData
+    .getAll(key)
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+}
+
+function deploymentProviderFrom(value: string | null): DeploymentProvider {
+  switch (value) {
+    case "vercel":
+    case "netlify":
+    case "cloudflare_pages":
+    case "replit":
+      return value;
+    default:
+      return "manual";
+  }
+}
+
+function templateKeyFromName(value: string): string {
+  return slugify(value).replace(/-/g, "_");
+}
+
+function nativePreviewUrlFor(input: {
+  projectId: string;
+  projectStatus: string;
+  draftVersionId?: string | null;
+  submittedVersionId?: string | null;
+  publishedVersionId?: string | null;
+  previewShareToken?: string | null;
+}): string | null {
+  if (!input.previewShareToken) return null;
+
+  const versionId = resolveLandingPagePreviewVersionId({
+    projectStatus: input.projectStatus,
+    draftVersionId: input.draftVersionId,
+    submittedVersionId: input.submittedVersionId,
+    publishedVersionId: input.publishedVersionId,
+  });
+  if (!versionId) return null;
+
+  return buildLandingPagePreviewUrl({
+    appUrl: serverEnv.APP_URL,
+    projectId: input.projectId,
+    versionId,
+    previewShareToken: input.previewShareToken,
+  });
+}
+
+function describeEditableFields() {
+  return [
+    "eyebrow",
+    "headline",
+    "subheadline",
+    "body",
+    "badge",
+    "ctaLabel",
+    "ctaHref",
+    "bullets",
+    "items",
+    "notes",
+  ].join(", ");
 }
 
 function parseDraft(formData: FormData): LandingPageDraft {
@@ -265,6 +338,93 @@ export async function setBuildProjectReuse(
   revalidatePath("/landing-page-factory");
 }
 
+export async function setReusableComponentApprovalStatus(
+  componentId: string,
+  status: "approved" | "rejected",
+): Promise<void> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+  await requirePermission(supabase, session.organisationId, "landing_page_factory", "approve");
+
+  const { error } = await supabase
+    .from("reusable_components")
+    .update({ approval_status: status })
+    .eq("id", componentId);
+  if (error) throw new Error(error.message);
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: "update",
+    resource: "reusable_components",
+    resourceId: componentId,
+    metadata: { approvalStatus: status },
+  });
+
+  revalidatePath("/landing-page-factory");
+}
+
+export async function createReusableComponentFromVersion(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+
+  const versionId = str(formData, "versionId");
+  const sectionId = str(formData, "sectionId");
+  const name = str(formData, "name");
+  if (!versionId || !sectionId || !name) {
+    throw new Error("Version, section, and component name are required.");
+  }
+
+  const { data: version, error: versionError } = await supabase
+    .from("landing_page_versions")
+    .select("id, organisation_id, client_id, landing_page_project_id, sections")
+    .eq("id", versionId)
+    .single();
+  if (versionError) throw new Error(versionError.message);
+
+  await requirePermission(supabase, session.organisationId, "landing_page_factory", "update", version.client_id);
+
+  const sections = landingPageSectionSchema.array().parse(version.sections);
+  const section = sections.find((candidate) => candidate.id === sectionId);
+  if (!section) {
+    throw new Error("That section could not be found in the selected version.");
+  }
+
+  const { data: component, error } = await supabase
+    .from("reusable_components")
+    .insert({
+      organisation_id: version.organisation_id,
+      source_landing_page_version_id: version.id,
+      source_section_id: section.id,
+      name,
+      category: mapLandingPageSectionKindToReusableCategory(section.kind),
+      code_reference: `landing_page_versions:${version.id}#${section.id}`,
+      props_notes: section.notes,
+      editable_fields: describeEditableFields(),
+      accessibility_notes: str(formData, "accessibilityNotes"),
+      analytics_events: str(formData, "analyticsEvents"),
+      conversion_purpose: str(formData, "conversionPurpose") ?? section.label,
+      approval_status: "pending_review",
+      section_payload: toJson(section),
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  await writeAuditLog(supabase, {
+    organisationId: version.organisation_id,
+    actorUserId: session.userId,
+    action: "create",
+    resource: "reusable_components",
+    resourceId: component.id,
+    clientId: version.client_id,
+    metadata: { versionId, sectionId, name },
+  });
+
+  revalidatePath("/landing-page-factory");
+  revalidatePath(`/landing-page-factory/${version.landing_page_project_id}`);
+}
+
 export async function createBrief(formData: FormData): Promise<void> {
   const session = await requireSession();
   const supabase = await getSupabaseServerClient();
@@ -408,7 +568,7 @@ export async function createPageProject(formData: FormData): Promise<void> {
       branch: str(formData, "branch"),
       created_by: session.userId,
     })
-    .select("id, client_id")
+    .select("id, client_id, preview_share_token")
     .single();
   if (error) throw new Error(error.message);
 
@@ -484,9 +644,18 @@ export async function createPageProject(formData: FormData): Promise<void> {
     .single();
   if (versionError) throw new Error(versionError.message);
 
+  const previewUrl = nativePreviewUrlFor({
+    projectId: project.id,
+    projectStatus: "planning",
+    draftVersionId: version.id,
+    submittedVersionId: null,
+    publishedVersionId: null,
+    previewShareToken: project.preview_share_token,
+  });
+
   const { error: projectUpdateError } = await supabase
     .from("landing_page_projects")
-    .update({ draft_version_id: version.id } as never)
+    .update(({ draft_version_id: version.id, ...(previewUrl ? { preview_url: previewUrl } : {}) }) as never)
     .eq("id", project.id);
   if (projectUpdateError) throw new Error(projectUpdateError.message);
 
@@ -531,13 +700,14 @@ export async function advancePageStatus(
   projectId: string,
   nextStatus: PageStatus,
   previewUrl?: string,
+  provider?: DeploymentProvider,
 ): Promise<void> {
   const session = await requireSession();
   const supabase = await getSupabaseServerClient();
 
   const { data: project, error: fetchError } = await supabase
     .from("landing_page_projects")
-    .select("id, name, status, client_id, preview_url")
+    .select("id, name, status, client_id, draft_version_id, submitted_version_id, published_version_id, preview_share_token, preview_url")
     .eq("id", projectId)
     .single();
   if (fetchError) throw new Error(fetchError.message);
@@ -548,7 +718,17 @@ export async function advancePageStatus(
     throw new Error(`A page cannot move from ${project.status} to ${nextStatus}.`);
   }
 
-  const effectivePreviewUrl = previewUrl?.trim() || project.preview_url;
+  const effectivePreviewUrl =
+    previewUrl?.trim() ||
+    nativePreviewUrlFor({
+      projectId: project.id,
+      projectStatus: nextStatus,
+      draftVersionId: project.draft_version_id,
+      submittedVersionId: project.submitted_version_id,
+      publishedVersionId: project.published_version_id,
+      previewShareToken: project.preview_share_token,
+    }) ||
+    project.preview_url;
 
   if (nextStatus === "client_approval") {
     throw new Error("Submit an exact page version for approval from the page editor.");
@@ -565,7 +745,7 @@ export async function advancePageStatus(
       organisation_id: session.organisationId,
       landing_page_project_id: projectId,
       environment: "preview",
-      provider: "manual",
+      provider: provider ?? "manual",
       url: previewUrl.trim(),
       status: "succeeded",
       triggered_by: session.userId,
@@ -579,10 +759,15 @@ export async function advancePageStatus(
     resource: "landing_page_projects",
     resourceId: projectId,
     clientId: project.client_id,
-    metadata: { status: nextStatus },
+    metadata: {
+      status: nextStatus,
+      previewUrl: previewUrl?.trim() ?? null,
+      provider: previewUrl?.trim() ? provider ?? "manual" : null,
+    },
   });
 
   revalidatePath("/landing-page-factory");
+  revalidatePath(`/landing-page-factory/${projectId}`);
   revalidatePath("/client-portal");
 }
 
@@ -741,6 +926,77 @@ export async function cloneTemplate(formData: FormData): Promise<void> {
   revalidatePath("/landing-page-factory");
 }
 
+export async function createTemplateFromComponents(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const supabase = await getSupabaseServerClient();
+  await requirePermission(supabase, session.organisationId, "landing_page_factory", "update");
+
+  const name = str(formData, "name");
+  if (!name) throw new Error("Template name is required");
+
+  const componentIds = strs(formData, "componentIds");
+  if (componentIds.length === 0) {
+    throw new Error("Select at least one approved reusable component.");
+  }
+
+  const { data: components, error: componentsError } = await supabase
+    .from("reusable_components")
+    .select("id, name, category, approval_status, section_payload")
+    .in("id", componentIds);
+  if (componentsError) throw new Error(componentsError.message);
+
+  if (!components || components.length !== componentIds.length) {
+    throw new Error("One or more reusable components could not be found.");
+  }
+  if (components.some((component) => component.approval_status !== "approved")) {
+    throw new Error("Only approved reusable components can be used in a shared template.");
+  }
+
+  const orderedComponents = componentIds
+    .map((componentId) => components.find((component) => component.id === componentId) ?? null)
+    .filter((component): component is NonNullable<typeof component> => Boolean(component));
+
+  const draft = buildLandingPageTemplateDraftFromComponents({
+    templateName: name,
+    components: orderedComponents.map((component) => ({
+      id: component.id,
+      name: component.name,
+      category: component.category,
+      sectionPayload: component.section_payload,
+    })),
+  });
+
+  const { data: template, error } = await supabase
+    .from("landing_page_templates")
+    .insert({
+      organisation_id: session.organisationId,
+      name,
+      slug: slugify(name),
+      description: str(formData, "description"),
+      category: "offer_landing_page",
+      source: "native",
+      template_key: templateKeyFromName(name),
+      structure: toJson(draft.sections),
+      defaults: draftToTemplateDefaults(draft),
+      preview_config: toJson({ versionName: draft.versionName, componentIds }),
+      created_by: session.userId,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  await writeAuditLog(supabase, {
+    organisationId: session.organisationId,
+    actorUserId: session.userId,
+    action: "create",
+    resource: "landing_page_templates",
+    resourceId: template.id,
+    metadata: { name, componentIds },
+  });
+
+  revalidatePath("/landing-page-factory");
+}
+
 export async function saveDraftVersion(formData: FormData): Promise<{ versionId: string }> {
   const session = await requireSession();
   const supabase = await getSupabaseServerClient();
@@ -752,7 +1008,7 @@ export async function saveDraftVersion(formData: FormData): Promise<{ versionId:
 
   const { data: project, error: projectError } = await supabase
     .from("landing_page_projects")
-    .select("id, client_id")
+    .select("id, client_id, status, submitted_version_id, published_version_id, preview_share_token")
     .eq("id", projectId)
     .single();
   if (projectError) throw new Error(projectError.message);
@@ -839,9 +1095,18 @@ export async function saveDraftVersion(formData: FormData): Promise<{ versionId:
     if (error) throw new Error(error.message);
   }
 
+  const nativePreviewUrl = nativePreviewUrlFor({
+    projectId,
+    projectStatus: project.status,
+    draftVersionId: versionId,
+    submittedVersionId: project.submitted_version_id,
+    publishedVersionId: project.published_version_id,
+    previewShareToken: project.preview_share_token,
+  });
+
   const { error: projectUpdateError } = await supabase
     .from("landing_page_projects")
-    .update({ draft_version_id: versionId } as never)
+    .update(({ draft_version_id: versionId, ...(nativePreviewUrl ? { preview_url: nativePreviewUrl } : {}) }) as never)
     .eq("id", projectId);
   if (projectUpdateError) throw new Error(projectUpdateError.message);
 
@@ -872,7 +1137,7 @@ export async function submitVersionForApproval(formData: FormData): Promise<void
   const [{ data: project, error: projectError }, { data: version, error: versionError }, { data: pendingApproval }] = await Promise.all([
     supabase
       .from("landing_page_projects")
-      .select("id, client_id, status, preview_url")
+      .select("id, client_id, status, preview_url, preview_share_token")
       .eq("id", projectId)
       .single(),
     supabase
@@ -909,7 +1174,17 @@ export async function submitVersionForApproval(formData: FormData): Promise<void
     throw new Error("There is already a pending approval for this page project.");
   }
 
-  const effectivePreviewUrl = previewUrl ?? project.preview_url;
+  const effectivePreviewUrl =
+    previewUrl ??
+    (project.preview_share_token
+      ? buildLandingPagePreviewUrl({
+          appUrl: serverEnv.APP_URL,
+          projectId,
+          versionId,
+          previewShareToken: project.preview_share_token,
+        })
+      : null) ??
+    project.preview_url;
   if (!effectivePreviewUrl) {
     throw new Error("A preview URL is required before requesting client approval.");
   }
@@ -956,20 +1231,6 @@ export async function submitVersionForApproval(formData: FormData): Promise<void
     } as never)
     .eq("id", projectId);
   if (projectUpdateError) throw new Error(projectUpdateError.message);
-
-  if (previewUrl) {
-    await supabase.from("deployments").insert({
-      organisation_id: session.organisationId,
-      landing_page_project_id: projectId,
-      landing_page_version_id: versionId,
-      environment: "preview",
-      provider: "manual",
-      url: previewUrl,
-      status: "succeeded",
-      deployment_kind: "publish",
-      triggered_by: session.userId,
-    });
-  }
 
   await writeAuditLog(supabase, {
     organisationId: session.organisationId,
@@ -1053,7 +1314,8 @@ export async function publishPage(formData: FormData): Promise<void> {
 
   const projectId = str(formData, "projectId");
   const productionUrl = str(formData, "productionUrl");
-  if (!projectId || !productionUrl) throw new Error("Project and production URL are required");
+  const provider = deploymentProviderFrom(str(formData, "provider"));
+  if (!projectId) throw new Error("Project is required");
 
   const { data: project, error: fetchError } = await supabase
     .from("landing_page_projects")
@@ -1068,7 +1330,7 @@ export async function publishPage(formData: FormData): Promise<void> {
     throw new Error("No submitted version is attached to this page project.");
   }
 
-  const [{ data: latestQa }, { data: approval }] = await Promise.all([
+  const [{ data: latestQa }, { data: approval }, { data: submittedVersion, error: submittedVersionError }] = await Promise.all([
     supabase
       .from("qa_runs")
       .select("overall, landing_page_version_id")
@@ -1086,7 +1348,14 @@ export async function publishPage(formData: FormData): Promise<void> {
       .eq("status", "approved")
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("landing_page_versions")
+      .select("id, slug")
+      .eq("id", project.submitted_version_id)
+      .eq("landing_page_project_id", projectId)
+      .single(),
   ]);
+  if (submittedVersionError) throw new Error(submittedVersionError.message);
 
   const gate = canPublishLandingPage({
     projectStatus: project.status,
@@ -1100,6 +1369,14 @@ export async function publishPage(formData: FormData): Promise<void> {
     throw new Error(`Publish blocked: ${gate.reasons.join(" ")}`);
   }
 
+  const effectiveProductionUrl =
+    productionUrl ??
+    buildLandingPageProductionUrl({
+      appUrl: serverEnv.APP_URL,
+      projectId,
+      slug: submittedVersion.slug,
+    });
+
   if (project.published_version_id && project.published_version_id !== project.submitted_version_id) {
     await supabase
       .from("landing_page_versions")
@@ -1111,7 +1388,7 @@ export async function publishPage(formData: FormData): Promise<void> {
     .from("landing_page_projects")
     .update({
       status: "published",
-      production_url: productionUrl,
+      production_url: effectiveProductionUrl,
       published_version_id: project.submitted_version_id,
     } as never)
     .eq("id", projectId);
@@ -1129,8 +1406,8 @@ export async function publishPage(formData: FormData): Promise<void> {
     landing_page_project_id: projectId,
     landing_page_version_id: project.submitted_version_id,
     environment: "production",
-    provider: "manual",
-    url: productionUrl,
+    provider,
+    url: effectiveProductionUrl,
     status: "succeeded",
     deployment_kind: "publish",
     triggered_by: session.userId,
@@ -1143,7 +1420,7 @@ export async function publishPage(formData: FormData): Promise<void> {
     resource: "landing_page_projects",
     resourceId: projectId,
     clientId: project.client_id,
-    metadata: { published: true, productionUrl },
+    metadata: { published: true, productionUrl: effectiveProductionUrl, provider },
   });
 
   // Automation: deployment succeeded → notify the project owner.
@@ -1151,7 +1428,7 @@ export async function publishPage(formData: FormData): Promise<void> {
     if (await recordRun(supabase, session.organisationId, "page_published_notify", projectId, `Publish notification for ${project.name}`)) {
       await notifyUsers(supabase, session.organisationId, [project.created_by], {
         title: `Published: ${project.name}`,
-        body: `Live at ${productionUrl}`,
+        body: `Live at ${effectiveProductionUrl}`,
         href: "/landing-page-factory",
         clientId: project.client_id,
       });
@@ -1170,6 +1447,7 @@ export async function rollbackPublishedVersion(formData: FormData): Promise<void
   const projectId = str(formData, "projectId");
   const versionId = str(formData, "versionId");
   const productionUrl = str(formData, "productionUrl");
+  const provider = deploymentProviderFrom(str(formData, "provider"));
   if (!projectId || !versionId) throw new Error("Project and version are required");
 
   const [{ data: project, error: projectError }, { data: version, error: versionError }] = await Promise.all([
@@ -1226,7 +1504,7 @@ export async function rollbackPublishedVersion(formData: FormData): Promise<void
     landing_page_project_id: projectId,
     landing_page_version_id: versionId,
     environment: "production",
-    provider: "manual",
+    provider,
     url: effectiveProductionUrl,
     status: "succeeded",
     deployment_kind: "rollback",
@@ -1240,7 +1518,7 @@ export async function rollbackPublishedVersion(formData: FormData): Promise<void
     resource: "landing_page_projects",
     resourceId: projectId,
     clientId: project.client_id,
-    metadata: { rollbackVersionId: versionId, productionUrl: effectiveProductionUrl },
+    metadata: { rollbackVersionId: versionId, productionUrl: effectiveProductionUrl, provider },
   });
 
   revalidatePath("/landing-page-factory");

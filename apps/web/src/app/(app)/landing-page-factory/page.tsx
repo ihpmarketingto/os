@@ -8,6 +8,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import {
   AddBuildProjectDialog,
   ApproveBriefButton,
+  BuildTemplateFromComponentsDialog,
   CloneTemplateDialog,
   CreateTemplateDialog,
   NewBriefDialog,
@@ -15,6 +16,7 @@ import {
   PageStatusActions,
   PublishDialog,
   QaRunDialog,
+  ReusableComponentApprovalButtons,
   ReuseStatusButtons,
 } from "./factory-dialogs";
 
@@ -32,6 +34,7 @@ export default async function LandingPageFactoryPage() {
     { data: campaigns },
     { data: projects },
     { data: templates },
+    { data: components },
     { data: versions },
   ] = await Promise.all([
       supabase
@@ -75,6 +78,12 @@ export default async function LandingPageFactoryPage() {
         .is("deleted_at", null)
         .order("created_at", { ascending: false }),
       supabase
+        .from("reusable_components")
+        .select("id, name, category, approval_status, conversion_purpose, source_section_id, source_landing_page_version_id")
+        .eq("organisation_id", session.organisationId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false }),
+      supabase
         .from("landing_page_versions")
         .select("id, landing_page_project_id, version_number, version_name, status")
         .eq("organisation_id", session.organisationId)
@@ -107,6 +116,9 @@ export default async function LandingPageFactoryPage() {
 
   const approvedBriefs = (briefs ?? []).filter((b) => b.status === "approved");
   const reusableReferences = (buildProjects ?? []).filter((p) => p.reuse_permitted);
+  const approvedComponents = (components ?? [])
+    .filter((component) => component.approval_status === "approved")
+    .map((component) => ({ id: component.id, name: component.name, category: component.category }));
 
   return (
     <div className="space-y-6">
@@ -121,6 +133,7 @@ export default async function LandingPageFactoryPage() {
         <div className="flex flex-wrap gap-2">
           <AddBuildProjectDialog clients={clients ?? []} />
           <CreateTemplateDialog />
+          <BuildTemplateFromComponentsDialog components={approvedComponents} />
           <NewBriefDialog
             clients={clients ?? []}
             campaigns={(campaigns ?? []).map((campaign) => ({ id: campaign.id, name: campaign.name }))}
@@ -139,6 +152,7 @@ export default async function LandingPageFactoryPage() {
           <TabsTrigger value="pages">Page projects ({(pages ?? []).length})</TabsTrigger>
           <TabsTrigger value="briefs">Briefs ({(briefs ?? []).length})</TabsTrigger>
           <TabsTrigger value="templates">Templates ({(templates ?? []).length})</TabsTrigger>
+          <TabsTrigger value="components">Components ({(components ?? []).length})</TabsTrigger>
           <TabsTrigger value="library">Build Library ({(buildProjects ?? []).length})</TabsTrigger>
         </TabsList>
 
@@ -330,6 +344,50 @@ export default async function LandingPageFactoryPage() {
                     <TableCell className="text-xs">{template.template_key}</TableCell>
                     <TableCell>
                       <CloneTemplateDialog templateId={template.id} templateName={template.name} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </TabsContent>
+
+        <TabsContent value="components" className="pt-4">
+          {!components || components.length === 0 ? (
+            <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+              No reusable components yet. Promote approved sections from a page version to start the library.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Component</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Purpose</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {components.map((component) => (
+                  <TableRow key={component.id}>
+                    <TableCell>
+                      <p className="font-medium">{component.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {component.source_section_id
+                          ? `Source section: ${component.source_section_id}`
+                          : "Imported into the native reusable library"}
+                      </p>
+                    </TableCell>
+                    <TableCell className="text-xs capitalize">{component.category.replace(/_/g, " ")}</TableCell>
+                    <TableCell className="text-xs">{component.conversion_purpose ?? "No purpose recorded yet."}</TableCell>
+                    <TableCell>
+                      <Badge variant={component.approval_status === "approved" ? "default" : component.approval_status === "rejected" ? "destructive" : "outline"} className="capitalize">
+                        {component.approval_status.replace(/_/g, " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <ReusableComponentApprovalButtons componentId={component.id} status={component.approval_status} />
                     </TableCell>
                   </TableRow>
                 ))}

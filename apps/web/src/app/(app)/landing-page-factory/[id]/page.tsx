@@ -8,6 +8,27 @@ import { buildDraftFromPreset } from "../template-presets";
 import { LandingPageEditor } from "../page-editor";
 import { PublishDialog, QaRunDialog } from "../factory-dialogs";
 
+function looksLikeImage(mimeType: string | null | undefined, path: string): boolean {
+  if (mimeType?.startsWith("image/")) return true;
+  if (mimeType) return false;
+  return /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(path);
+}
+
+async function signStoragePaths(
+  supabase: Awaited<ReturnType<typeof getSupabaseServerClient>>,
+  bucket: "documents" | "creative",
+  paths: string[],
+) {
+  const signedEntries = await Promise.all(
+    paths.map(async (path) => {
+      const { data } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
+      return [path, data?.signedUrl ?? null] as const;
+    }),
+  );
+
+  return new Map(signedEntries.filter((entry): entry is readonly [string, string] => Boolean(entry[1])));
+}
+
 export default async function LandingPageFactoryProjectPage({
   params,
 }: {
@@ -93,8 +114,18 @@ export default async function LandingPageFactoryProjectPage({
       .eq("subject_type", "landing_page")
       .eq("subject_id", id)
       .order("requested_at", { ascending: false }),
-    supabase.from("documents").select("id, name").eq("client_id", client.id).is("deleted_at", null).order("created_at", { ascending: false }),
-    supabase.from("creative_assets").select("id, name").eq("client_id", client.id).is("deleted_at", null).order("created_at", { ascending: false }),
+    supabase
+      .from("documents")
+      .select("id, name, file_type, storage_path")
+      .eq("client_id", client.id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("creative_assets")
+      .select("id, name, mime_type, storage_path")
+      .eq("client_id", client.id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
     supabase
       .from("knowledge_entries")
       .select("id, title, kind")
@@ -169,6 +200,20 @@ export default async function LandingPageFactoryProjectPage({
   });
 
   const campaignOptions = campaign ? [{ id: campaign.id, name: campaign.name }] : [];
+  const documentPreviewPaths = (documents ?? [])
+    .filter((doc) => looksLikeImage(doc.file_type, doc.storage_path))
+    .map((doc) => doc.storage_path);
+  const creativePreviewPaths = (creativeAssets ?? [])
+    .filter((asset) => looksLikeImage(asset.mime_type, asset.storage_path))
+    .map((asset) => asset.storage_path);
+  const [signedDocuments, signedCreative] = await Promise.all([
+    documentPreviewPaths.length > 0
+      ? signStoragePaths(supabase, "documents", documentPreviewPaths)
+      : Promise.resolve(new Map<string, string>()),
+    creativePreviewPaths.length > 0
+      ? signStoragePaths(supabase, "creative", creativePreviewPaths)
+      : Promise.resolve(new Map<string, string>()),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -262,8 +307,20 @@ export default async function LandingPageFactoryProjectPage({
         previewUrl={project.preview_url}
         productionUrl={project.production_url}
         versionHistory={versions ?? []}
-        documents={(documents ?? []).map((doc) => ({ id: doc.id, name: doc.name }))}
-        creativeAssets={(creativeAssets ?? []).map((asset) => ({ id: asset.id, name: asset.name }))}
+        documents={(documents ?? []).map((doc) => ({
+          id: doc.id,
+          name: doc.name,
+          kind: "document" as const,
+          previewUrl: signedDocuments.get(doc.storage_path) ?? null,
+          mimeType: doc.file_type,
+        }))}
+        creativeAssets={(creativeAssets ?? []).map((asset) => ({
+          id: asset.id,
+          name: asset.name,
+          kind: "creative" as const,
+          previewUrl: signedCreative.get(asset.storage_path) ?? null,
+          mimeType: asset.mime_type,
+        }))}
         knowledgeEntries={(knowledgeEntries ?? []).map((entry) => ({ id: entry.id, name: entry.title, kind: entry.kind }))}
         experiments={(experiments ?? []).map((experiment) => ({ id: experiment.id, name: experiment.name }))}
         campaigns={campaignOptions}

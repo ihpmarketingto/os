@@ -2,7 +2,13 @@ import { createSupabaseServerClient } from "@ihp/database/client-server";
 import { NextResponse, type NextRequest } from "next/server";
 import { loadServerEnv } from "@ihp/config";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/confirm"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/auth/callback",
+  "/auth/confirm",
+  "/lp-preview/",
+  "/lp/",
+];
 
 /**
  * Routes that authenticate themselves rather than by session cookie, so the
