@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "./types.gen";
+import type { Json } from "./types.gen";
+import type { Database } from "./types";
 
 type AuditAction = Database["public"]["Tables"]["audit_logs"]["Row"]["action"];
 type ActorType = Database["public"]["Tables"]["audit_logs"]["Row"]["actor_type"];

@@ -1,5 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
-import type { Database } from "./types.gen";
+import type { Database } from "./types";
 
 /**
  * Browser-side client. Uses only the anon key — never import
