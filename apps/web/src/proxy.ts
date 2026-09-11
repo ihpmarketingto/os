@@ -2,16 +2,21 @@ import { createSupabaseServerClient } from "@ihp/database/client-server";
 import { NextResponse, type NextRequest } from "next/server";
 import { loadServerEnv } from "@ihp/config";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/confirm"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/auth/callback",
+  "/auth/confirm",
+  "/.well-known/oauth-protected-resource",
+];
 
 /**
- * Routes that authenticate themselves rather than by session cookie, so the
- * cookie check here would only ever redirect a machine caller to a login
- * page it cannot use. Each one is responsible for its own authorisation and
- * must fail closed: see /api/cron/sweep, which refuses to run at all when
- * its shared secret is unset.
+ * Routes that authenticate themselves rather than by the browser session
+ * cookie. Each route must fail closed.
  */
-const SELF_AUTHENTICATING_PATHS = ["/api/cron/"];
+const SELF_AUTHENTICATING_PATHS = [
+  "/api/cron/",
+  "/api/mcp",
+];
 
 export async function proxy(request: NextRequest) {
   if (SELF_AUTHENTICATING_PATHS.some((path) => request.nextUrl.pathname.startsWith(path))) {
@@ -34,24 +39,30 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const isPublicPath = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
 
   if (!user && !isPublicPath) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirectTo", request.nextUrl.pathname);
+    // Preserve the OAuth authorization_id and any other required query state.
+    loginUrl.searchParams.set(
+      "redirectTo",
+      `${request.nextUrl.pathname}${request.nextUrl.search}`,
+    );
     return NextResponse.redirect(loginUrl);
   }
 
   if (user && request.nextUrl.pathname === "/login") {
+    const redirectTo = request.nextUrl.searchParams.get("redirectTo");
+    if (redirectTo?.startsWith("/") && !redirectTo.startsWith("//")) {
+      return NextResponse.redirect(new URL(redirectTo, request.url));
+    }
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Client portal roles only ever see the client portal — never the
-  // internal sidebar/CRM/finance/etc, even if they guess the URL. RLS
-  // would block their queries either way, but redirecting keeps the UI
-  // honest about what they can and can't do.
   if (user && !isPublicPath) {
     const { data: membership } = await supabase
       .from("organisation_members")
