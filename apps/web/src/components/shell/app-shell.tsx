@@ -26,7 +26,7 @@ export function AppShell({
   const [commandOpen, setCommandOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-background text-foreground">
       <Sidebar organisationName={organisationName} />
       <div className="flex flex-1 flex-col">
         <Topbar
@@ -37,7 +37,7 @@ export function AppShell({
           notifications={notifications}
           unreadCount={unreadCount}
         />
-        <main className="flex-1 overflow-y-auto bg-muted/20 p-6">{children}</main>
+        <main className="ihp-app-bg flex-1 overflow-y-auto bg-background p-5 md:p-7 lg:p-8">{children}</main>
       </div>
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
     </div>

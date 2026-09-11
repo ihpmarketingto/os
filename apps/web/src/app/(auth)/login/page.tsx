@@ -18,16 +18,16 @@ export default async function LoginPage({
   const errorMessage = error ? (ERROR_MESSAGES[error] ?? ERROR_MESSAGES.auth_callback_failed) : null;
 
   return (
-    <Card>
-      <CardHeader>
-        <p className="text-sm font-medium text-brand">IHP OS</p>
-        <CardTitle className="font-heading text-2xl">Sign in to your workspace</CardTitle>
-        <CardDescription>
+    <Card className="border-border bg-card/95 py-6 shadow-2xl shadow-black/25 backdrop-blur-sm">
+      <CardHeader className="gap-3 px-6">
+        <p className="brand-eyebrow">Private workspace</p>
+        <CardTitle className="font-heading text-3xl font-bold tracking-[-0.04em]">Sign in to IHP OS</CardTitle>
+        <CardDescription className="leading-6">
           Enter your email and we&rsquo;ll send you a sign-in link. Access is invite-only: contact your Agency
           Owner if you need an account.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5 px-6">
         {errorMessage ? (
           <div className="flex items-start gap-2 rounded-md border border-risk/40 bg-risk/5 p-3">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-risk" />
@@ -38,7 +38,7 @@ export default async function LoginPage({
         <MagicLinkForm redirectTo={target} />
 
         <details className="group">
-          <summary className="cursor-pointer list-none text-xs text-muted-foreground underline-offset-4 hover:underline">
+          <summary className="cursor-pointer list-none text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground">
             Sign in with a password instead
           </summary>
           <div className="pt-3">

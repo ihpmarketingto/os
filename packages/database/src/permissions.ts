@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Action, Resource } from "@ihp/types";
-import type { Database } from "./types.gen";
+import type { Database } from "./types";
 
 /**
  * Thin wrapper around the public.has_permission RPC (which itself calls the
@@ -19,7 +19,7 @@ export async function hasPermission(
     p_org_id: organisationId,
     p_resource: resource,
     p_action: action,
-    p_client_id: clientId ?? null,
+    p_client_id: clientId ?? undefined,
   });
 
   if (error) {
