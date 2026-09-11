@@ -29,11 +29,11 @@ export default async function OAuthConsentPage({
 
   if (error || !authDetails) {
     return (
-      <Card>
-        <CardHeader>
-          <p className="text-sm font-medium text-brand">IHP OS</p>
-          <CardTitle className="font-heading text-2xl">Authorization request unavailable</CardTitle>
-          <CardDescription>
+      <Card className="border-border bg-card/95 py-6 shadow-2xl shadow-black/25 backdrop-blur-sm">
+        <CardHeader className="gap-3 px-6">
+          <p className="brand-eyebrow">Secure connection</p>
+          <CardTitle className="font-heading text-3xl font-bold tracking-[-0.04em]">Authorization request unavailable</CardTitle>
+          <CardDescription className="leading-6">
             This request may have expired or already been completed. Return to ChatGPT and start the connection again.
           </CardDescription>
         </CardHeader>
@@ -52,19 +52,19 @@ export default async function OAuthConsentPage({
     : [];
 
   return (
-    <Card>
-      <CardHeader>
-        <p className="text-sm font-medium text-brand">IHP OS</p>
-        <CardTitle className="font-heading text-2xl">
+    <Card className="border-border bg-card/95 py-6 shadow-2xl shadow-black/25 backdrop-blur-sm">
+      <CardHeader className="gap-3 px-6">
+        <p className="brand-eyebrow">Secure connection</p>
+        <CardTitle className="font-heading text-3xl font-bold tracking-[-0.04em]">
           Connect {authDetails.client.name}
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="leading-6">
           This gives the connected AI client access as your current IHP OS user. Existing organisation, client and role permissions still apply.
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-5">
-        <div className="rounded-md border bg-muted/30 p-4 text-sm">
+      <CardContent className="space-y-5 px-6">
+        <div className="rounded-md border bg-muted/50 p-4 text-sm">
           <p className="font-medium">What this connection can do</p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
             <li>Find clients you already have permission to access.</li>
@@ -84,7 +84,7 @@ export default async function OAuthConsentPage({
 
         {scopes.length > 0 ? (
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="brand-eyebrow text-[10px]">
               Requested identity scopes
             </p>
             <p className="mt-1 text-sm">{scopes.join(", ")}</p>

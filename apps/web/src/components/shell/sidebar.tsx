@@ -5,18 +5,19 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS } from "@/lib/nav/config";
 import { Badge } from "@/components/ui/badge";
+import { BrandMark } from "@/components/brand/brand-mark";
 
 export function Sidebar({ organisationName }: { organisationName: string }) {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-64 flex-col border-r bg-sidebar text-sidebar-foreground lg:flex">
-      <div className="flex h-16 items-center gap-2 border-b px-5">
-        <span className="font-heading text-lg font-medium tracking-tight">IHP OS</span>
+    <aside className="hidden w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
+      <div className="flex h-20 items-center border-b border-sidebar-border px-5">
+        <BrandMark />
       </div>
-      <div className="border-b px-5 py-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Organisation</p>
-        <p className="truncate text-sm font-medium">{organisationName}</p>
+      <div className="border-b border-sidebar-border px-5 py-4">
+        <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-brand">Organisation</p>
+        <p className="mt-1 truncate text-sm font-medium">{organisationName}</p>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">
@@ -28,9 +29,9 @@ export function Sidebar({ organisationName }: { organisationName: string }) {
                 <Link
                   href={item.href}
                   className={cn(
-                    "flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm transition-colors",
+                    "flex items-center justify-between gap-2 rounded-md px-3 py-2.5 text-sm transition-colors",
                     isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      ? "bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
                   )}
                 >
@@ -39,7 +40,7 @@ export function Sidebar({ organisationName }: { organisationName: string }) {
                     {item.label}
                   </span>
                   {item.phase > 0 ? (
-                    <Badge variant="outline" className="shrink-0 text-[10px] text-muted-foreground">
+                    <Badge variant="outline" className="shrink-0 border-sidebar-border text-[9px] text-sidebar-foreground/50">
                       Phase {item.phase}
                     </Badge>
                   ) : null}

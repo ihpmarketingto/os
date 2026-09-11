@@ -25,16 +25,16 @@ export default async function NoAccessPage() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <p className="text-sm font-medium text-brand">IHP OS</p>
-        <CardTitle className="font-heading text-2xl">No workspace access</CardTitle>
-        <CardDescription>
+    <Card className="border-border bg-card/95 py-6 shadow-2xl shadow-black/25 backdrop-blur-sm">
+      <CardHeader className="gap-3 px-6">
+        <p className="brand-eyebrow">Private workspace</p>
+        <CardTitle className="font-heading text-3xl font-bold tracking-[-0.04em]">No workspace access</CardTitle>
+        <CardDescription className="leading-6">
           You are signed in as {data.user.email}, but this account has not been added to an IHP OS organisation.
           Ask your Agency Owner to invite this email address, then sign in again.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-6">
         <SignOutButton />
       </CardContent>
     </Card>

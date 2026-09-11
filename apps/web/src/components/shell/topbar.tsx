@@ -44,14 +44,14 @@ export function Topbar({
   unreadCount: number;
 }) {
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-background px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/90 px-5 backdrop-blur-xl md:px-7 lg:px-8">
       <button
         onClick={onSearchClick}
-        className="flex w-full max-w-sm items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
+        className="flex w-full max-w-sm items-center gap-2 rounded-full border bg-card/70 px-4 py-2 text-sm text-muted-foreground transition-colors hover:border-foreground/25 hover:bg-muted"
       >
         <Search className="size-4" />
         Search or jump to...
-        <kbd className="ml-auto rounded border bg-background px-1.5 py-0.5 text-[10px] font-medium">⌘K</kbd>
+        <kbd className="ml-auto rounded-full border bg-background px-2 py-0.5 text-[9px] font-semibold tracking-wide">⌘K</kbd>
       </button>
 
       <div className="flex items-center gap-2">
